@@ -1,0 +1,83 @@
+import { Injectable } from '@nestjs/common';
+import {
+  PermissionBit,
+  PermissionBits,
+  PermissionName,
+  PermissionsDependencies,
+  UserPermissions,
+} from 'constants/permissions';
+import {
+  IAddPermsResponse,
+  IAddPermsResponseFailed,
+} from './permissions.interface';
+
+@Injectable()
+export class Permissions {
+  get_bit(perm: PermissionName): PermissionBit {
+    return UserPermissions[perm];
+  }
+
+  get_name(bit: PermissionBit): PermissionName {
+    return Object.entries(UserPermissions).find(
+      ([, v]) => v === bit,
+    )?.[0] as PermissionName;
+  }
+
+  calculate(listPerms: PermissionName[]): PermissionBits {
+    let bitPerms = 0;
+    listPerms.map((v) => (bitPerms |= this.get_bit(v)));
+    return bitPerms;
+  }
+
+  hasPerms(
+    bitPerms: PermissionBits,
+    permToCheck: PermissionBit | PermissionName,
+  ): boolean {
+    if (typeof permToCheck == 'string') {
+      return (bitPerms & this.get_bit(permToCheck)) == 0 ? false : true;
+    } else {
+      return (bitPerms & permToCheck) == 0 ? false : true;
+    }
+  }
+
+  compute(bitPerms: PermissionBits): PermissionName[] {
+    return (Object.keys(UserPermissions) as PermissionName[]).filter(
+      (name) => (bitPerms & UserPermissions[name]) !== 0,
+    );
+  }
+
+  addPerms(
+    bitPerms: PermissionBits,
+    permsToAdd: PermissionName[],
+  ): IAddPermsResponse {
+    const noDependency = permsToAdd.filter(
+      (v) => !PermissionsDependencies[this.get_bit(v)],
+    );
+    const hasDependencies = permsToAdd.filter((v) => !noDependency.includes(v));
+    noDependency.map((v) => (bitPerms |= this.get_bit(v)));
+    const success: PermissionName[] = [...noDependency];
+    const failed: IAddPermsResponseFailed[] = [];
+    hasDependencies.map((v) => {
+      const dependencies = PermissionsDependencies[this.get_bit(v)];
+      const missing: PermissionName[] = [];
+      dependencies?.map((dependency) => {
+        if (typeof dependency != 'number') return;
+        if (!this.hasPerms(bitPerms, dependency))
+          missing.push(this.get_name(dependency));
+      });
+      if (missing.length == 0) {
+        bitPerms |= this.get_bit(v);
+        success.push(v);
+      } else
+        failed.push({
+          name: v,
+          missing_dependency: missing,
+        });
+    });
+    return {
+      success,
+      failed,
+      newBit: bitPerms,
+    };
+  }
+}

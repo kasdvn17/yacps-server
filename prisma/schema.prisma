@@ -6,10 +6,54 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
 }
 
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
+}
+
+// Client
+model User {
+  id       String     @id @unique @default(cuid())
+  email    String     @unique
+  username String     @unique
+  password String
+  fullname String
+  birthday DateTime
+  role     UserRole   @relation(fields: [userRoleId], references: [id])
+  type     UserType
+  status   UserStatus
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  userRoleId String
+}
+
+model UserRole {
+  id    String @id @unique @default(cuid())
+  name  String @unique
+  perms Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  User      User[]
+}
+
+enum UserType {
+  ADMIN
+  MEMBER
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+  BANNED
+  CONF_AWAITING
+}
+
+// Judge
+model Judge {
+  id   String @id @unique
+  name String @unique
 }

@@ -1,4 +1,9 @@
-import { Module } from '@nestjs/common';
+import { Module, Global } from '@nestjs/common';
 
-@Module({})
+@Global()
+@Module({
+  imports: [],
+  controllers: [],
+  providers: [],
+})
 export class JudgeAPIModule {}
