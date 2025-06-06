@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { ClientAPIModule } from './client-api/client-api.module';
 import { JudgeAPIModule } from './judge-api/judge-api.module';
 import { ConfigModule } from '@nestjs/config';
-import { PrismaService } from './prisma.service';
+import { PrismaService } from './prisma/prisma.service';
 import { RouterModule } from '@nestjs/core';
 
 @Module({
