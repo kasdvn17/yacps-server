@@ -1,6 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { PermissionName } from 'constants/permissions';
-import { Permissions } from 'src/helpers/permissions/permissions';
+import { Permissions } from '@/helpers/permissions/permissions.service';
 
 @Controller('sessions')
 export class SessionsController {
