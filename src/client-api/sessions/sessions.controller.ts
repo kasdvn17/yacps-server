@@ -1,10 +1,13 @@
 import { Controller, Get } from '@nestjs/common';
 import { PermissionName } from 'constants/permissions';
-import { Permissions } from '@/helpers/permissions/permissions.service';
+import {
+  calcProcessDurationTime,
+  PermissionsService,
+} from '@/helpers/permissions/permissions.service';
 
 @Controller('sessions')
 export class SessionsController {
-  constructor(private permissions: Permissions) {}
+  constructor(private permissions: PermissionsService) {}
 
   @Get('/')
   getSessions() {
@@ -15,13 +18,16 @@ export class SessionsController {
 
   @Get('/add')
   addTest() {
+    const old = process.hrtime();
     const perms: PermissionName[] = ['ADMINISTRATOR'];
     const x = this.permissions.addPerms(this.permissions.calculate(perms), [
       'VIEW_SUBMISSION_DETAILS',
       'VIEW_SUBMISSION_CODE',
     ]);
-    console.log(x);
+    console.log(calcProcessDurationTime(old));
     const n3ew = x.newBit;
-    return this.permissions.compute(n3ew);
+    const a = this.permissions.hasPerms(n3ew, 'DUMMY_PERMISSION_50');
+    console.log(calcProcessDurationTime(old));
+    return a;
   }
 }

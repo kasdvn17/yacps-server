@@ -11,8 +11,17 @@ import {
   IAddPermsResponseFailed,
 } from './permissions.interface';
 
+export function calcProcessDurationTime(
+  beforeHRTime: [number, number],
+): number {
+  const timeAfter = process.hrtime(beforeHRTime);
+  const calculated =
+    Math.floor((timeAfter[0] * 100000000 + timeAfter[1]) / 10000) / 100;
+  return calculated;
+}
+
 @Injectable()
-export class Permissions {
+export class PermissionsService {
   get_bit(perm: PermissionName): PermissionBit {
     return UserPermissions[perm];
   }
@@ -24,7 +33,7 @@ export class Permissions {
   }
 
   calculate(listPerms: PermissionName[]): PermissionBits {
-    let bitPerms = 0;
+    let bitPerms = 0n;
     listPerms.map((v) => (bitPerms |= this.get_bit(v)));
     return bitPerms;
   }
@@ -34,16 +43,17 @@ export class Permissions {
     permToCheck: PermissionBit | PermissionName,
   ): boolean {
     if (typeof permToCheck == 'string') {
-      return (bitPerms & this.get_bit(permToCheck)) == 0 ? false : true;
+      return (bitPerms & this.get_bit(permToCheck)) == 0n ? false : true;
     } else {
-      return (bitPerms & permToCheck) == 0 ? false : true;
+      return (bitPerms & permToCheck) == 0n ? false : true;
     }
   }
 
+  // should only be used in the frontend admin to see all permissions, other modules, controllers use hasPerms most
   compute(bitPerms: PermissionBits): PermissionName[] {
-    return (Object.keys(UserPermissions) as PermissionName[]).filter(
-      (name) => (bitPerms & UserPermissions[name]) !== 0,
-    );
+    return Object.entries(UserPermissions)
+      .filter(([, val]) => (bitPerms & val) !== 0n)
+      .map(([name]) => name) as PermissionName[];
   }
 
   addPerms(
@@ -51,14 +61,14 @@ export class Permissions {
     permsToAdd: PermissionName[],
   ): IAddPermsResponse {
     const noDependency = permsToAdd.filter(
-      (v) => !PermissionsDependencies[this.get_bit(v)],
+      (v) => !PermissionsDependencies.has(this.get_bit(v)),
     );
     const hasDependencies = permsToAdd.filter((v) => !noDependency.includes(v));
     noDependency.map((v) => (bitPerms |= this.get_bit(v)));
     const success: PermissionName[] = [...noDependency];
     const failed: IAddPermsResponseFailed[] = [];
     hasDependencies.map((v) => {
-      const dependencies = PermissionsDependencies[this.get_bit(v)];
+      const dependencies = PermissionsDependencies.get(this.get_bit(v));
       const missing: PermissionName[] = [];
       dependencies?.map((dependency) => {
         if (typeof dependency != 'number') return;

@@ -4,6 +4,7 @@ import { JudgeAPIModule } from './judge-api/judge-api.module';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaService } from './prisma/prisma.service';
 import { RouterModule } from '@nestjs/core';
+import { SubmissionsController } from './submissions/submissions.controller';
 
 @Module({
   imports: [
@@ -23,7 +24,7 @@ import { RouterModule } from '@nestjs/core';
       isGlobal: true,
     }),
   ],
-  controllers: [],
+  controllers: [SubmissionsController],
   providers: [PrismaService],
 })
 export class AppModule {}

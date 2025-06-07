@@ -16,35 +16,35 @@ datasource db {
 
 // Client
 model User {
-  id       String     @id @unique @default(cuid())
-  email    String     @unique
-  username String     @unique
+  id       String       @id @unique @default(uuid())
+  email    String       @unique
+  username String       @unique
   password String
   fullname String
   birthday DateTime
   roles    UserOnRole[]
   status   UserStatus
 
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  userRoleId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Role {
-  id    String @id @unique @default(cuid())
-  name  String @unique
-  perms Int
+  id    String @id @unique @default(uuid())
+  name  String
+  color String
+  perms BigInt
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
   users     UserOnRole[]
 }
 
 model UserOnRole {
-  user  User @relation(fields: [userId], references: [id])
-  userId String
-  role Role @relation(fields: [roleId], references: [id])
-  roleId String
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+  role       Role     @relation(fields: [roleId], references: [id])
+  roleId     String
   assignedAt DateTime @default(now())
 
   @@id([userId, roleId])
@@ -59,6 +59,11 @@ enum UserStatus {
 
 // Judge
 model Judge {
-  id   String @id @unique
-  name String @unique
+  id         String   @id @unique
+  name       String   @unique
+  host       String   @unique
+  ip         String?
+  lastActive DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
