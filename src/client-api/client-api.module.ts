@@ -5,6 +5,7 @@ import { SubmissionsController } from '@/client-api/submissions/submissions.cont
 import { UsersController } from '@/client-api/users/users.controller';
 import { ProblemsController } from '@/client-api/problems/problems.controller';
 import { ContestsController } from '@/client-api/contests/contests.controller';
+import { SessionsService } from './sessions/sessions.service';
 
 @Module({
   controllers: [
@@ -14,7 +15,7 @@ import { ContestsController } from '@/client-api/contests/contests.controller';
     ProblemsController,
     ContestsController,
   ],
-  providers: [PermissionsService],
+  providers: [PermissionsService, SessionsService],
   exports: [],
 })
 export class ClientAPIModule {}

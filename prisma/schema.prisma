@@ -16,7 +16,7 @@ datasource db {
 
 // Client
 model User {
-  id String @id @unique @default(uuid())
+  id String @id @default(uuid())
 
   email    String   @unique
   username String   @unique
@@ -24,11 +24,14 @@ model User {
   fullname String
   DOB      DateTime
 
-  gender Gender       @default(RATHER_NOT_SAY)
-  roles  UserOnRole[]
+  gender Gender     @default(RATHER_NOT_SAY)
   status UserStatus
 
-  sessions Session[]
+  roles         UserOnRole[]
+  sessions      Session[]
+  rating        Rating?
+  submissions   Submission[]
+  participation ContestParticipation[]
 
   isDeleted Boolean  @default(false)
   createdAt DateTime @default(now())
@@ -36,7 +39,7 @@ model User {
 }
 
 model Role {
-  id    String @id @unique @default(uuid())
+  id    String @id @default(uuid())
   name  String
   color String
   perms BigInt
@@ -52,12 +55,13 @@ model UserOnRole {
   role       Role     @relation(fields: [roleId], references: [id])
   roleId     String
   assignedAt DateTime @default(now())
+  assignedBy String?
 
   @@id([userId, roleId])
 }
 
 model Session {
-  id     String @id @unique @default(uuid())
+  id     String @id @default(uuid())
   user   User   @relation(fields: [userId], references: [id])
   userId String
   ip     String
@@ -66,6 +70,69 @@ model Session {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   expiresAt   DateTime
+}
+
+model Rating {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id])
+
+  points Int @default(0)
+
+  contests_sum BigInt @default(0)
+  mean         Float  @default(0)
+  performance  Float  @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ContestParticipation {
+  contest   Contest @relation(fields: [contestId], references: [id])
+  contestId Int
+  user      User    @relation(fields: [userId], references: [id])
+  userId    String
+
+  @@id([contestId, userId])
+}
+
+model Contest {
+  id            Int                    @id @default(autoincrement())
+  participation ContestParticipation[]
+  problems      ProblemOnContest[]
+}
+
+model Submission {
+  id Int @id @default(autoincrement())
+
+  author      User    @relation(fields: [authorId], references: [id])
+  authorId    String
+  problem     Problem @relation(fields: [problemSlug], references: [slug])
+  problemSlug String
+
+  code     String
+  language String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ProblemOnContest {
+  contest     Contest @relation(fields: [contestId], references: [id])
+  contestId   Int
+  problem     Problem @relation(fields: [problemSlug], references: [slug])
+  problemSlug String
+
+  @@id([contestId, problemSlug])
+}
+
+model Problem {
+  slug        String             @id
+  name        String
+  description String?
+  statement   String
+  contests    ProblemOnContest[]
+
+  Submission Submission[]
 }
 
 enum Gender {
@@ -83,7 +150,7 @@ enum UserStatus {
 
 // Judge
 model Judge {
-  id   String  @id @unique
+  id   String  @id
   name String  @unique
   host String  @unique
   ip   String?
