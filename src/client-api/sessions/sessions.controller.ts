@@ -1,7 +1,11 @@
-import { Controller, Delete, Get, Post } from '@nestjs/common';
+import { Controller, Delete, Get, Post, Query } from '@nestjs/common';
+import { SessionsService } from './sessions.service';
+import { Session } from '@prisma/client';
 
-@Controller('sessions')
+@Controller()
 export class SessionsController {
+  constructor(private sessionsService: SessionsService) {}
+
   @Post('/')
   createNewSession() {}
 
@@ -14,4 +18,10 @@ export class SessionsController {
   // get all sessions of the currently logged in users
   @Get('/all')
   getAllSessions() {}
+
+  @Get('/find')
+  async findSessions(@Query() queries: Session) {
+    const data = await this.sessionsService.findSessions(queries);
+    return data;
+  }
 }
