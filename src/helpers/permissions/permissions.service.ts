@@ -11,14 +11,14 @@ import {
   IAddPermsResponseFailed,
 } from './permissions.interface';
 
-export function calcProcessDurationTime(
-  beforeHRTime: [number, number],
-): number {
-  const timeAfter = process.hrtime(beforeHRTime);
-  const calculated =
-    Math.floor((timeAfter[0] * 100000000 + timeAfter[1]) / 10000) / 100;
-  return calculated;
-}
+// export function calcProcessDurationTime(
+//   beforeHRTime: [number, number],
+// ): number {
+//   const timeAfter = process.hrtime(beforeHRTime);
+//   const calculated =
+//     Math.floor((timeAfter[0] * 100000000 + timeAfter[1]) / 10000) / 100;
+//   return calculated;
+// }
 
 @Injectable()
 export class PermissionsService {

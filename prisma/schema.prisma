@@ -16,15 +16,21 @@ datasource db {
 
 // Client
 model User {
-  id       String       @id @unique @default(uuid())
-  email    String       @unique
-  username String       @unique
+  id String @id @unique @default(uuid())
+
+  email    String   @unique
+  username String   @unique
   password String
   fullname String
-  birthday DateTime
-  roles    UserOnRole[]
-  status   UserStatus
+  DOB      DateTime
 
+  gender Gender       @default(RATHER_NOT_SAY)
+  roles  UserOnRole[]
+  status UserStatus
+
+  sessions Session[]
+
+  isDeleted Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -50,6 +56,24 @@ model UserOnRole {
   @@id([userId, roleId])
 }
 
+model Session {
+  id     String @id @unique @default(uuid())
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+  ip     String
+
+  isLoggedOut Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  expiresAt   DateTime
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  RATHER_NOT_SAY
+}
+
 enum UserStatus {
   ACTIVE
   DISABLED
@@ -59,10 +83,11 @@ enum UserStatus {
 
 // Judge
 model Judge {
-  id         String   @id @unique
-  name       String   @unique
-  host       String   @unique
-  ip         String?
+  id   String  @id @unique
+  name String  @unique
+  host String  @unique
+  ip   String?
+
   lastActive DateTime
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
