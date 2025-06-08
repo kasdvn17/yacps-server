@@ -1,7 +1,10 @@
 import { PrismaService } from '@/prisma/prisma.service';
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Session } from '@prisma/client';
-import { ResponseCodes } from 'constants/response_code';
 import { UsersService } from '../users/users.service';
 import { Config } from 'config';
 
@@ -15,39 +18,61 @@ export class SessionsService {
   async createSession(
     userId: string,
     ip: string,
-  ): Promise<{ code: ResponseCodes; data?: Session }> {
-    const user = await this.userService.findUser({
-      id: userId,
-    });
-    if (!user) return { code: ResponseCodes.USER_NOT_FOUND };
+    skipCheckUser: boolean = false,
+  ): Promise<Session> {
+    if (!skipCheckUser) {
+      const user = await this.userService.findUser({
+        id: userId,
+      });
+      if (!user) throw new NotFoundException('USER_NOT_FOUND');
+    }
     let session: Session | null;
     try {
       session = await this.prismaService.session.create({
         data: {
           ip,
-          userId: user.id,
+          userId,
           expiresAt: new Date(Date.now() + Config.SESSION_EXPIRES_MS),
         },
       });
-      return { code: ResponseCodes.SUCCESS, data: session };
+      return session;
     } catch (err) {
-      console.log(err);
-      return { code: ResponseCodes.UNKNOWN_ERROR };
+      throw new InternalServerErrorException(err);
     }
   }
 
-  async deleteSession(sessionId: string): Promise<ResponseCodes> {
+  async deleteSession(sessionId: string) {
     try {
-      await this.prismaService.session.delete({
+      const deleteResult = await this.prismaService.session.deleteMany({
         where: {
           id: sessionId,
         },
       });
-      return ResponseCodes.SUCCESS;
+      if (deleteResult.count == 0)
+        throw new NotFoundException('SESSION_NOT_FOUND');
     } catch (err) {
-      console.log(err);
-      return ResponseCodes.UNKNOWN_ERROR;
+      throw new InternalServerErrorException(err);
     }
+  }
+
+  async findSession(fields: Partial<Session>): Promise<Session | null> {
+    return await this.prismaService.session.findFirst({
+      where: fields,
+    });
+  }
+
+  async findSessionWithUser(fields: Partial<Session>) {
+    return await this.prismaService.session.findFirst({
+      where: {
+        ...fields,
+        user: {
+          isDeleted: false,
+        },
+      },
+      include: {
+        user: true,
+      },
+    });
   }
 
   async findSessions(fields: Partial<Session>): Promise<Session[]> {
@@ -55,23 +80,5 @@ export class SessionsService {
       where: fields,
     });
     return sessions;
-  }
-
-  async sessionLogOut(sessionId: string): Promise<ResponseCodes> {
-    try {
-      await this.prismaService.session.update({
-        where: {
-          id: sessionId,
-          isLoggedOut: false,
-        },
-        data: {
-          isLoggedOut: true,
-        },
-      });
-      return ResponseCodes.SUCCESS;
-    } catch (err) {
-      console.log(err);
-      return ResponseCodes.UNKNOWN_ERROR;
-    }
   }
 }

@@ -18,14 +18,15 @@ datasource db {
 model User {
   id String @id @default(uuid())
 
-  email    String   @unique
-  username String   @unique
+  email    String @unique
+  username String @unique
   password String
   fullname String
-  DOB      DateTime
+  // DOB      DateTime
+  perms    BigInt @default(0)
 
-  gender Gender     @default(RATHER_NOT_SAY)
-  status UserStatus @default(ACTIVE) //@default(CONF_AWAITING)
+  isDeleted Boolean    @default(false)
+  status    UserStatus @default(ACTIVE) //@default(CONF_AWAITING)
 
   roles         UserOnRole[]
   sessions      Session[]
@@ -41,7 +42,7 @@ model Role {
   id    String @id @default(uuid())
   name  String
   color String
-  perms BigInt
+  perms BigInt @default(0)
 
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
@@ -66,10 +67,9 @@ model Session {
   userId String
   ip     String
 
-  isLoggedOut Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  expiresAt   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  expiresAt DateTime
 }
 
 model Rating {

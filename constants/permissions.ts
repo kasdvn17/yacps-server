@@ -19,7 +19,7 @@ export const UserPermissions = {
 
   // Users
   CHANGE_USER_STATUS: 1n << 6n,
-  BAN_UNBAN_USER: 1n << 7n,
+  MANAGE_USER_BANS: 1n << 7n,
   RESET_USER_PASSWORD: 1n << 8n,
   CHANGE_USERNAME: 1n << 9n,
   CHANGE_USER_INFORMATION: 1n << 10n,
