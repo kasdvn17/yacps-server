@@ -56,4 +56,22 @@ export class SessionsService {
     });
     return sessions;
   }
+
+  async sessionLogOut(sessionId: string): Promise<ResponseCodes> {
+    try {
+      await this.prismaService.session.update({
+        where: {
+          id: sessionId,
+          isLoggedOut: false,
+        },
+        data: {
+          isLoggedOut: true,
+        },
+      });
+      return ResponseCodes.SUCCESS;
+    } catch (err) {
+      console.log(err);
+      return ResponseCodes.UNKNOWN_ERROR;
+    }
+  }
 }

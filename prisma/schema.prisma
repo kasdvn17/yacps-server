@@ -25,13 +25,13 @@ model User {
   DOB      DateTime
 
   gender Gender     @default(RATHER_NOT_SAY)
-  status UserStatus
+  status UserStatus @default(ACTIVE) //@default(CONF_AWAITING)
 
   roles         UserOnRole[]
   sessions      Session[]
   rating        Rating?
   submissions   Submission[]
-  participation ContestParticipation[]
+  participation Contestant[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -48,6 +48,7 @@ model Role {
   users     UserOnRole[]
 }
 
+// mysql doesn't support sth simpler:(
 model UserOnRole {
   user       User     @relation(fields: [userId], references: [id])
   userId     String
@@ -77,6 +78,7 @@ model Rating {
 
   points Int @default(0)
 
+  contests_cnt Int    @default(0)
   contests_sum BigInt @default(0)
   mean         Float  @default(0)
   performance  Float  @default(0)
@@ -85,7 +87,7 @@ model Rating {
   updatedAt DateTime @updatedAt
 }
 
-model ContestParticipation {
+model Contestant {
   contest   Contest @relation(fields: [contestId], references: [id])
   contestId Int
   user      User    @relation(fields: [userId], references: [id])
@@ -95,9 +97,10 @@ model ContestParticipation {
 }
 
 model Contest {
-  id            Int                    @id @default(autoincrement())
-  participation ContestParticipation[]
-  problems      ProblemOnContest[]
+  id       Int                @id @default(autoincrement())
+  contest  Contestant[]
+  problems ProblemOnContest[]
+  authorId String
 }
 
 model Submission {
@@ -130,6 +133,7 @@ model Problem {
   description String?
   statement   String
   contests    ProblemOnContest[]
+  authorId    String
 
   Submission Submission[]
 }
@@ -149,12 +153,22 @@ enum UserStatus {
 
 // Judge
 model Judge {
-  id   String  @id
-  name String  @unique
-  host String  @unique
-  ip   String?
+  id    String      @id
+  name  String      @unique
+  host  String      @unique
+  ip    String?
+  token JudgeToken?
 
   lastActive DateTime
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+model JudgeToken {
+  id      String @id // ensure that when judge tokens are (re)generated, they are jwt-ed from different ids
+  judge   Judge  @relation(fields: [judgeId], references: [id])
+  judgeId String @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
