@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { PermissionsService } from '@/client-api/permissions/permissions.service';
 import { SubmissionsController } from '@/client-api/submissions/submissions.controller';
 import { ProblemsController } from '@/client-api/problems/problems.controller';
 import { ContestsController } from '@/client-api/contests/contests.controller';
@@ -8,12 +7,14 @@ import { RouterModule } from '@nestjs/core';
 import { UsersModule } from './users/users.module';
 import { JwtModule } from '@nestjs/jwt';
 import { Config } from 'config';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   controllers: [SubmissionsController, ProblemsController, ContestsController],
-  providers: [PermissionsService],
+  providers: [],
   exports: [],
   imports: [
+    AuthModule,
     SessionsModule,
     UsersModule,
     JwtModule.register({

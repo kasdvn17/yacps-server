@@ -77,7 +77,6 @@ export class SessionsController {
     await this.sessionsService.deleteSession(req['session'].id);
   }
 
-  // get all sessions of the currently logged in users
   @Get('/all')
   async getMySessions(@Req() req: Request) {
     const userId: string = req['user'].id;
@@ -88,7 +87,6 @@ export class SessionsController {
 
   @Get('/find')
   @Perms([UserPermissions.VIEW_USER_SESSIONS])
-  // TODO: Only users with VIEW_USER_SESSIONS permissions can do this request
   async findSessions(@Query() queries: Partial<Session>) {
     Object.keys(queries).map(([v]) => {
       if (!(v in this.prismaService.session.fields))
