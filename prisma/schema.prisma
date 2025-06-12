@@ -1,8 +1,4 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// IsDeleted models: User, Contest, Submission, Problem, Judge
 
 generator client {
   provider = "prisma-client-js"
@@ -39,22 +35,25 @@ model User {
 }
 
 model Role {
-  id    String @id @default(uuid())
+  id String @id @default(uuid())
+
   name  String
   color String
   perms BigInt @default(0)
 
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-  users     UserOnRole[]
+  users UserOnRole[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // mysql doesn't support sth simpler:(
 model UserOnRole {
-  user       User     @relation(fields: [userId], references: [id])
-  userId     String
-  role       Role     @relation(fields: [roleId], references: [id])
-  roleId     String
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+  role   Role   @relation(fields: [roleId], references: [id])
+  roleId String
+
   assignedAt DateTime @default(now())
   assignedBy String?
 
@@ -62,7 +61,8 @@ model UserOnRole {
 }
 
 model Session {
-  id     String @id @default(uuid())
+  id String @id @default(uuid())
+
   user   User   @relation(fields: [userId], references: [id])
   userId String
   ip     String
@@ -76,12 +76,12 @@ model Rating {
   userId String @id
   user   User   @relation(fields: [userId], references: [id])
 
-  points Int @default(0)
-
   contests_cnt Int    @default(0)
   contests_sum BigInt @default(0)
-  mean         Float  @default(0)
-  performance  Float  @default(0)
+
+  points      Int   @default(0)
+  mean        Float @default(0)
+  performance Float @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -97,10 +97,18 @@ model Contestant {
 }
 
 model Contest {
-  id       Int                @id @default(autoincrement())
-  contest  Contestant[]
-  problems ProblemOnContest[]
-  authorId String
+  id   Int    @id @default(autoincrement())
+  name String
+  slug String
+
+  min_rating Int @default(0)
+  max_rating Int @default(0)
+
+  isDeleted Boolean @default(false)
+  authorId  String
+
+  participants Contestant[]
+  problems     ProblemOnContest[]
 }
 
 model Submission {
@@ -113,6 +121,9 @@ model Submission {
 
   code     String
   language String
+
+  isDeleted Boolean @default(false)
+  isLocked  Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -128,14 +139,31 @@ model ProblemOnContest {
 }
 
 model Problem {
-  slug        String             @id
+  slug String @id
+
   name        String
   description String?
   statement   String
-  contests    ProblemOnContest[]
-  authorId    String
+  category    String
 
-  Submission Submission[]
+  points        Int
+  total_subs    Int
+  accepted_subs Int
+
+  authorId  String
+  isDeleted Boolean @default(false)
+
+  contests    ProblemOnContest[]
+  submissions Submission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CodingLanguage {
+  id        String  @id
+  name      String  @unique
+  available Boolean @default(false)
 }
 
 enum Gender {
@@ -158,6 +186,8 @@ model Judge {
   host  String      @unique
   ip    String?
   token JudgeToken?
+
+  isDeleted Boolean @default(false)
 
   lastActive DateTime
   createdAt  DateTime @default(now())

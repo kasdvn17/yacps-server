@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { SubmissionsController } from '@/client-api/submissions/submissions.controller';
-import { ProblemsController } from '@/client-api/problems/problems.controller';
 import { ContestsController } from '@/client-api/contests/contests.controller';
 import { SessionsModule } from './sessions/sessions.module';
 import { RouterModule } from '@nestjs/core';
@@ -8,15 +7,17 @@ import { UsersModule } from './users/users.module';
 import { JwtModule } from '@nestjs/jwt';
 import { Config } from 'config';
 import { AuthModule } from './auth/auth.module';
+import { ProblemsModule } from './problems/problems.module';
 
 @Module({
-  controllers: [SubmissionsController, ProblemsController, ContestsController],
+  controllers: [SubmissionsController, ContestsController],
   providers: [],
   exports: [],
   imports: [
     AuthModule,
     SessionsModule,
     UsersModule,
+    ProblemsModule,
     JwtModule.register({
       global: true,
       secret: process.env.JWT_CLIENT_TOKEN,
@@ -30,6 +31,10 @@ import { AuthModule } from './auth/auth.module';
       {
         path: '/client/users',
         module: UsersModule,
+      },
+      {
+        path: '/client/problems',
+        module: ProblemsModule,
       },
     ]),
   ],
