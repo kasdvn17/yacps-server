@@ -75,9 +75,13 @@ export class SessionsService {
     });
   }
 
-  async findSessions(fields: Partial<Session>): Promise<Session[]> {
+  async findSessions(
+    fields: Partial<Session>,
+    limit: number = 10,
+  ): Promise<Session[]> {
     const sessions = await this.prismaService.session.findMany({
       where: fields,
+      take: limit,
     });
     return sessions;
   }

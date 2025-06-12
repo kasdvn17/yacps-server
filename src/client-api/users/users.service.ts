@@ -29,6 +29,7 @@ export class UsersService {
     fields: Partial<User>,
     isDeleted: boolean = false,
     includeHash: boolean = false,
+    limit: number = 10,
   ): Promise<User[]> {
     const users = await this.prismaService.user.findMany({
       where: {
@@ -38,6 +39,7 @@ export class UsersService {
       omit: {
         password: !includeHash,
       },
+      take: limit,
     });
     return users;
   }

@@ -21,8 +21,11 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { AuthGuard } from '../auth/auth.guard';
 import { Request } from 'express';
+import { Perms, Public } from '../auth/auth.decorator';
+import { UserPermissions } from 'constants/permissions';
 
 @Controller()
+@UseGuards(AuthGuard)
 export class SessionsController {
   constructor(
     private prismaService: PrismaService,
@@ -33,6 +36,7 @@ export class SessionsController {
   ) {}
 
   @Post('/')
+  @Public()
   async createNewSession(@Body() body: CreateSessionDTO, @RealIP() ip: string) {
     const user = await this.usersService.findUser(
       {
@@ -60,7 +64,6 @@ export class SessionsController {
   }
 
   @Get('/me')
-  @UseGuards(AuthGuard)
   getCurrentSession(@Req() req: Request) {
     const response = {
       ...req['session'],
@@ -70,13 +73,21 @@ export class SessionsController {
   }
 
   @Delete('/me')
-  destroyCurrentSession() {}
+  async destroyCurrentSession(@Req() req: Request) {
+    await this.sessionsService.deleteSession(req['session'].id);
+  }
 
   // get all sessions of the currently logged in users
   @Get('/all')
-  getAllSessions() {}
+  async getMySessions(@Req() req: Request) {
+    const userId: string = req['user'].id;
+    return await this.sessionsService.findSessions({
+      userId,
+    });
+  }
 
   @Get('/find')
+  @Perms([UserPermissions.VIEW_USER_SESSIONS])
   // TODO: Only users with VIEW_USER_SESSIONS permissions can do this request
   async findSessions(@Query() queries: Partial<Session>) {
     Object.keys(queries).map(([v]) => {

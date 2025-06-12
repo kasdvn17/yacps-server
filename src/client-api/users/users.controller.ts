@@ -12,9 +12,11 @@ import { CreateUserDTO } from './users.dto';
 import { UsersService } from './users.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { BcryptService } from '../bcrypt/bcrypt.service';
+import { Public } from '../auth/auth.decorator';
 import { AuthGuard } from '../auth/auth.guard';
 
 @Controller()
+@UseGuards(AuthGuard)
 export class UsersController {
   constructor(
     private prismaService: PrismaService,
@@ -23,6 +25,7 @@ export class UsersController {
   ) {}
 
   @Post('/')
+  @Public()
   async createUser(@Body() body: CreateUserDTO) {
     const not_unique = await this.prismaService.user.findFirst({
       where: {
@@ -51,7 +54,6 @@ export class UsersController {
   }
 
   @Get('/me')
-  @UseGuards(AuthGuard)
   getCurrentUser(@Req() req: Request) {
     const response = {
       ...req['user'],

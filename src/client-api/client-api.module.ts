@@ -16,7 +16,6 @@ import { Config } from 'config';
   imports: [
     SessionsModule,
     UsersModule,
-
     JwtModule.register({
       global: true,
       secret: process.env.JWT_CLIENT_TOKEN,

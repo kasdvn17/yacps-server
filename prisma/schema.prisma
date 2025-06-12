@@ -18,12 +18,12 @@ datasource db {
 model User {
   id String @id @default(uuid())
 
-  email    String @unique
-  username String @unique
+  email    String  @unique
+  username String  @unique
   password String
-  fullname String
+  fullname String?
   // DOB      DateTime
-  perms    BigInt @default(0)
+  perms    BigInt  @default(0)
 
   isDeleted Boolean    @default(false)
   status    UserStatus @default(ACTIVE) //@default(CONF_AWAITING)
