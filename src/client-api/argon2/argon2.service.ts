@@ -17,7 +17,7 @@ export class Argon2Service {
     try {
       return await argon2.verify(encrypted, plain);
     } catch (error) {
-      console.error('Error comparing password:', error);
+      this.logger.error('Error comparing password:', error.stack || error);
       return false;
     }
   }
