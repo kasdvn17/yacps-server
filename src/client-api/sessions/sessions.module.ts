@@ -2,12 +2,12 @@ import { Global, Module } from '@nestjs/common';
 import { SessionsController } from './sessions.controller';
 import { SessionsService } from './sessions.service';
 import { UsersService } from '../users/users.service';
-import { BcryptService } from '../bcrypt/bcrypt.service';
+import { Argon2Service } from '../argon2/argon2.service';
 
 @Global()
 @Module({
   controllers: [SessionsController],
-  providers: [SessionsService, UsersService, BcryptService],
+  providers: [SessionsService, UsersService, Argon2Service],
   imports: [],
   exports: [SessionsService],
 })
