@@ -15,7 +15,7 @@ import { SessionsService } from './sessions.service';
 import { CreateSessionDTO } from './sessions.dto';
 import { Session } from '@prisma/client';
 import { UsersService } from '../users/users.service';
-import { BcryptService } from '../bcrypt/bcrypt.service';
+import { Argon2Service } from '../argon2/argon2.service';
 import { RealIP } from 'nestjs-real-ip';
 import { PrismaService } from '@/prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
@@ -31,7 +31,7 @@ export class SessionsController {
     private prismaService: PrismaService,
     private sessionsService: SessionsService,
     private usersService: UsersService,
-    private bcryptService: BcryptService,
+    private argon2Service: Argon2Service,
     private jwtService: JwtService,
   ) {}
 
@@ -47,7 +47,7 @@ export class SessionsController {
     );
     if (!user) throw new NotFoundException('INCORRECT_CREDENTIALS');
     const hashed = user.password;
-    if (!(await this.bcryptService.comparePassword(body.password, hashed)))
+    if (!(await this.argon2Service.comparePassword(body.password, hashed)))
       throw new NotFoundException('INCORRECT_CREDENTIALS');
     try {
       const session = await this.sessionsService.createSession(
