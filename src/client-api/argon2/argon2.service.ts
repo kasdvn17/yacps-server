@@ -1,9 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { Config } from 'config';
 
 @Injectable()
 export class Argon2Service {
+  private readonly logger = new Logger(Argon2Service.name);
+
   async hashPassword(password: string): Promise<string> {
     return await argon2.hash(password, {
       type: argon2.argon2id,
