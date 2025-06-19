@@ -40,7 +40,7 @@ export class UsersController {
         data: {
           email: body.email,
           username: body.username,
-          fullname: body.fullname,
+          fullname: body.fullname || null,
           password: hashed,
         },
         omit: {
