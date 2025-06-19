@@ -11,7 +11,7 @@ import {
 import { CreateUserDTO } from './users.dto';
 import { UsersService } from './users.service';
 import { PrismaService } from '@/prisma/prisma.service';
-import { BcryptService } from '../bcrypt/bcrypt.service';
+import { Argon2Service } from '../argon2/argon2.service';
 import { Public } from '../auth/auth.decorator';
 import { AuthGuard } from '../auth/auth.guard';
 
@@ -21,7 +21,7 @@ export class UsersController {
   constructor(
     private prismaService: PrismaService,
     private usersService: UsersService,
-    private bcryptService: BcryptService,
+    private argon2Service: Argon2Service,
   ) {}
 
   @Post('/')
@@ -34,7 +34,7 @@ export class UsersController {
     });
     if (not_unique != null && not_unique.id)
       throw new ConflictException('EMAIL_OR_USERNAME_EXISTS');
-    const hashed = await this.bcryptService.hashPassword(body.password);
+    const hashed = await this.argon2Service.hashPassword(body.password);
     try {
       await this.prismaService.user.create({
         data: {

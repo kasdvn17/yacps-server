@@ -8,6 +8,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { Config } from 'config';
 import { AuthModule } from './auth/auth.module';
 import { ProblemsModule } from './problems/problems.module';
+import { PrismaModule } from '@/prisma/prisma.module';
 
 @Module({
   controllers: [SubmissionsController, ContestsController],
@@ -18,6 +19,7 @@ import { ProblemsModule } from './problems/problems.module';
     SessionsModule,
     UsersModule,
     ProblemsModule,
+    PrismaModule,
     JwtModule.register({
       global: true,
       secret: process.env.JWT_CLIENT_TOKEN,
