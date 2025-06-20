@@ -41,15 +41,20 @@ export class AuthGuard implements CanActivate {
         await this.sessionService.deleteSession(session.id);
         throw new UnauthorizedException();
       }
-      
+
       // Validate User Agent binding
       const currentUserAgent = request.headers['x-user-agent'] as string;
-      if (session.userAgent && session.userAgent !== 'Unknown' && currentUserAgent && session.userAgent !== currentUserAgent) {
+      if (
+        session.userAgent &&
+        session.userAgent !== 'Unknown' &&
+        currentUserAgent &&
+        session.userAgent !== currentUserAgent
+      ) {
         // User Agent mismatch - potential session hijacking
         await this.sessionService.deleteSession(session.id);
         throw new UnauthorizedException('Session invalid: User Agent mismatch');
       }
-      
+
       if (requiredPerms && requiredPerms.length > 0) {
         const missingPerms = requiredPerms.filter(
           (v) => !this.permissionsService.hasPerms(session.user.perms, v),

@@ -17,7 +17,6 @@ import { CreateSessionDTO } from './sessions.dto';
 import { Session } from '@prisma/client';
 import { UsersService } from '../users/users.service';
 import { Argon2Service } from '../argon2/argon2.service';
-import { RealIP } from 'nestjs-real-ip';
 import { PrismaService } from '@/prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { AuthGuard } from '../auth/auth.guard';
@@ -58,7 +57,7 @@ export class SessionsController {
     }
     const captchaValid = await this.hcaptchaService.verifyCaptcha(
       body.captchaToken,
-      body.clientIp
+      body.clientIp,
     );
     if (!captchaValid) {
       throw new BadRequestException('Invalid captcha');
@@ -78,7 +77,7 @@ export class SessionsController {
     try {
       // Use clientIp from payload, fallback to 'unknown' if not provided
       const clientIp = body.clientIp || 'unknown';
-      
+
       const session = await this.sessionsService.createSession(
         user.id,
         clientIp,
@@ -132,7 +131,10 @@ export class SessionsController {
     const currentSessionId: string = req['session'].id;
 
     // Delete all sessions except the current one to keep user logged in
-    const deletedCount = await this.sessionsService.deleteAllUserSessions(userId, currentSessionId);
+    const deletedCount = await this.sessionsService.deleteAllUserSessions(
+      userId,
+      currentSessionId,
+    );
 
     return {
       message: 'All other sessions have been terminated',

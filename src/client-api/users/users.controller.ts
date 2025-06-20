@@ -49,7 +49,7 @@ export class UsersController {
     }
     const captchaValid = await this.hcaptchaService.verifyCaptcha(
       body.captchaToken,
-      body.clientIp
+      body.clientIp,
     );
     if (!captchaValid) {
       throw new BadRequestException('Invalid captcha');

@@ -16,7 +16,8 @@ export class HCaptchaService {
     }
 
     try {
-      const response = await axios.post(this.verifyUrl, 
+      const response = await axios.post(
+        this.verifyUrl,
         new URLSearchParams({
           secret: this.secret,
           response: token,
@@ -26,11 +27,11 @@ export class HCaptchaService {
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
           },
-        }
+        },
       );
 
       const result = response.data;
-      
+
       if (!result.success) {
         console.error('hCaptcha verification failed:', result['error-codes']);
         return false;
