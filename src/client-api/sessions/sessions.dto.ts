@@ -13,4 +13,12 @@ export class CreateSessionDTO {
   @IsOptional()
   @IsString()
   userAgent?: string;
+
+  @IsOptional()
+  @IsString()
+  clientIp?: string;
+
+  @IsOptional()
+  @IsString()
+  captchaToken?: string;
 }
