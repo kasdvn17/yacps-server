@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   InternalServerErrorException,
+  Logger,
   Post,
   Req,
   UseGuards,
@@ -18,6 +19,8 @@ import { AuthGuard } from '../auth/auth.guard';
 @Controller()
 @UseGuards(AuthGuard)
 export class UsersController {
+  private readonly logger = new Logger(UsersController.name);
+
   constructor(
     private prismaService: PrismaService,
     private usersService: UsersService,
@@ -48,7 +51,7 @@ export class UsersController {
         },
       });
     } catch (err) {
-      console.log(err);
+      this.logger.error(err);
       throw new InternalServerErrorException('UNKNOWN_ERROR', err);
     }
   }

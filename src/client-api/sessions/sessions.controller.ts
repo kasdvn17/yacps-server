@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
   Post,
   Query,
@@ -23,10 +24,13 @@ import { AuthGuard } from '../auth/auth.guard';
 import { Request } from 'express';
 import { Perms, Public } from '../auth/auth.decorator';
 import { UserPermissions } from 'constants/permissions';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { getRealIp } from '../utils';
 
 @Controller()
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, ThrottlerGuard)
 export class SessionsController {
+  private readonly logger = new Logger(SessionsController.name);
   constructor(
     private prismaService: PrismaService,
     private sessionsService: SessionsService,
@@ -37,6 +41,14 @@ export class SessionsController {
 
   @Post('/')
   @Public()
+  // 5 login attempts per minute per real IP
+  @Throttle({
+    default: {
+      limit: 5,
+      ttl: 60000,
+      getTracker: getRealIp,
+    },
+  })
   async createNewSession(@Body() body: CreateSessionDTO, @RealIP() ip: string) {
     const user = await this.usersService.findUser(
       {
@@ -58,7 +70,7 @@ export class SessionsController {
       const token = await this.jwtService.signAsync(session);
       return { data: token };
     } catch (err) {
-      console.log(err);
+      this.logger.error(err);
       throw new InternalServerErrorException('UNKNOWN_ERROR', err);
     }
   }

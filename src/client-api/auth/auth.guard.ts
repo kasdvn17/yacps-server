@@ -33,8 +33,6 @@ export class AuthGuard implements CanActivate {
     }
     try {
       const payload = await this.jwtService.verifyAsync(token);
-      console.log(payload);
-
       const session = await this.sessionService.findSessionWithUser({
         id: payload.id,
       });
