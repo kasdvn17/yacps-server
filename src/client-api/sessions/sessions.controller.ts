@@ -52,15 +52,16 @@ export class SessionsController {
     },
   })
   async createNewSession(@Body() body: CreateSessionDTO) {
-    // Verify hCaptcha if token is provided
-    if (body.captchaToken) {
-      const captchaValid = await this.hcaptchaService.verifyCaptcha(
-        body.captchaToken,
-        body.clientIp
-      );
-      if (!captchaValid) {
-        throw new BadRequestException('Invalid captcha');
-      }
+    // Require hCaptcha token
+    if (!body.captchaToken) {
+      throw new BadRequestException('Captcha token is required');
+    }
+    const captchaValid = await this.hcaptchaService.verifyCaptcha(
+      body.captchaToken,
+      body.clientIp
+    );
+    if (!captchaValid) {
+      throw new BadRequestException('Invalid captcha');
     }
 
     const user = await this.usersService.findUser(
