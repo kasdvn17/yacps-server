@@ -19,7 +19,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
           const xRealIp = req.headers['x-real-ip'];
           const cfConnectingIp = req.headers['cf-connecting-ip'];
           const xConnectingIp = req.headers['x-connecting-ip'];
-          
+
           // Return first valid IP found
           if (cfConnectingIp && typeof cfConnectingIp === 'string') {
             return cfConnectingIp;
@@ -32,11 +32,13 @@ import { ThrottlerModule } from '@nestjs/throttler';
           }
           if (xForwardedFor) {
             // X-Forwarded-For can contain multiple IPs, get the first one
-            const forwarded = Array.isArray(xForwardedFor) ? xForwardedFor[0] : xForwardedFor;
+            const forwarded = Array.isArray(xForwardedFor)
+              ? xForwardedFor[0]
+              : xForwardedFor;
             const firstIp = forwarded.split(',')[0].trim();
             if (firstIp) return firstIp;
           }
-          
+
           // Fallback to connection IP
           return req.ip || req.connection?.remoteAddress || 'unknown';
         },

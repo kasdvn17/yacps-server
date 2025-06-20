@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
   Post,
   Query,
@@ -24,10 +25,12 @@ import { Request } from 'express';
 import { Perms, Public } from '../auth/auth.decorator';
 import { UserPermissions } from 'constants/permissions';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { getRealIp } from '../utils';
 
 @Controller()
 @UseGuards(AuthGuard, ThrottlerGuard)
 export class SessionsController {
+  private readonly logger = new Logger(SessionsController.name);
   constructor(
     private prismaService: PrismaService,
     private sessionsService: SessionsService,
@@ -38,39 +41,14 @@ export class SessionsController {
 
   @Post('/')
   @Public()
-  @Throttle({ 
-    default: { 
-      limit: 5, 
+  // 5 login attempts per minute per real IP
+  @Throttle({
+    default: {
+      limit: 5,
       ttl: 60000,
-      getTracker: (req) => {
-        // Try to get real IP from various headers
-        const xForwardedFor = req.headers['x-forwarded-for'];
-        const xRealIp = req.headers['x-real-ip'];
-        const cfConnectingIp = req.headers['cf-connecting-ip'];
-        const xConnectingIp = req.headers['x-connecting-ip'];
-        
-        // Return first valid IP found
-        if (cfConnectingIp && typeof cfConnectingIp === 'string') {
-          return cfConnectingIp;
-        }
-        if (xConnectingIp && typeof xConnectingIp === 'string') {
-          return xConnectingIp;
-        }
-        if (xRealIp && typeof xRealIp === 'string') {
-          return xRealIp;
-        }
-        if (xForwardedFor) {
-          // X-Forwarded-For can contain multiple IPs, get the first one
-          const forwarded = Array.isArray(xForwardedFor) ? xForwardedFor[0] : xForwardedFor;
-          const firstIp = forwarded.split(',')[0].trim();
-          if (firstIp) return firstIp;
-        }
-        
-        // Fallback to connection IP
-        return req.ip || req.connection?.remoteAddress || 'unknown';
-      }
-    } 
-  }) // 5 login attempts per minute per real IP
+      getTracker: getRealIp,
+    },
+  })
   async createNewSession(@Body() body: CreateSessionDTO, @RealIP() ip: string) {
     const user = await this.usersService.findUser(
       {
@@ -92,7 +70,7 @@ export class SessionsController {
       const token = await this.jwtService.signAsync(session);
       return { data: token };
     } catch (err) {
-      console.log(err);
+      this.logger.error(err);
       throw new InternalServerErrorException('UNKNOWN_ERROR', err);
     }
   }

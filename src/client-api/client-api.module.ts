@@ -9,6 +9,8 @@ import { Config } from 'config';
 import { AuthModule } from './auth/auth.module';
 import { ProblemsModule } from './problems/problems.module';
 import { PrismaModule } from '@/prisma/prisma.module';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { getRealIp } from './utils';
 
 @Module({
   controllers: [SubmissionsController, ContestsController],
@@ -25,6 +27,13 @@ import { PrismaModule } from '@/prisma/prisma.module';
       secret: process.env.JWT_CLIENT_TOKEN,
       signOptions: { expiresIn: Config.SESSION_EXPIRES_MS / 1000 },
     }),
+    ThrottlerModule.forRoot([
+      {
+        limit: 10,
+        ttl: 1000,
+        getTracker: getRealIp,
+      },
+    ]),
     RouterModule.register([
       {
         path: '/client/sessions',
