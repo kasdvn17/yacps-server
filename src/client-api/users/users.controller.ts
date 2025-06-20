@@ -43,15 +43,16 @@ export class UsersController {
     },
   })
   async createUser(@Body() body: CreateUserDTO) {
-    // Verify hCaptcha if token is provided
-    if (body.captchaToken) {
-      const captchaValid = await this.hcaptchaService.verifyCaptcha(
-        body.captchaToken,
-        body.clientIp
-      );
-      if (!captchaValid) {
-        throw new BadRequestException('Invalid captcha');
-      }
+    // Require hCaptcha token
+    if (!body.captchaToken) {
+      throw new BadRequestException('Captcha token is required');
+    }
+    const captchaValid = await this.hcaptchaService.verifyCaptcha(
+      body.captchaToken,
+      body.clientIp
+    );
+    if (!captchaValid) {
+      throw new BadRequestException('Invalid captcha');
     }
 
     const not_unique = await this.prismaService.user.findFirst({
