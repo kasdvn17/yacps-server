@@ -19,6 +19,7 @@ export class SessionsService {
     userId: string,
     ip: string,
     skipCheckUser: boolean = false,
+    userAgent?: string,
   ): Promise<Session> {
     if (!skipCheckUser) {
       const user = await this.userService.findUser({
@@ -32,6 +33,7 @@ export class SessionsService {
         data: {
           ip,
           userId,
+          userAgent: userAgent || 'Unknown',
           expiresAt: new Date(Date.now() + Config.SESSION_EXPIRES_MS),
         },
       });
@@ -50,6 +52,25 @@ export class SessionsService {
       });
       if (deleteResult.count == 0)
         throw new NotFoundException('SESSION_NOT_FOUND');
+    } catch (err) {
+      throw new InternalServerErrorException(err);
+    }
+  }
+
+  async deleteAllUserSessions(userId: string, excludeSessionId?: string) {
+    try {
+      const whereClause: any = { userId };
+
+      // Optionally exclude the current session to keep user logged in
+      if (excludeSessionId) {
+        whereClause.NOT = { id: excludeSessionId };
+      }
+
+      const deleteResult = await this.prismaService.session.deleteMany({
+        where: whereClause,
+      });
+
+      return deleteResult.count;
     } catch (err) {
       throw new InternalServerErrorException(err);
     }
