@@ -26,6 +26,7 @@ import { Perms, Public } from '../auth/auth.decorator';
 import { UserPermissions } from 'constants/permissions';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { getRealIp } from '../utils';
+import { HCaptchaService } from '../hcaptcha/hcaptcha.service';
 
 @Controller()
 @UseGuards(AuthGuard, ThrottlerGuard)
@@ -37,6 +38,7 @@ export class SessionsController {
     private usersService: UsersService,
     private argon2Service: Argon2Service,
     private jwtService: JwtService,
+    private hcaptchaService: HCaptchaService,
   ) {}
 
   @Post('/')
@@ -49,7 +51,18 @@ export class SessionsController {
       getTracker: getRealIp,
     },
   })
-  async createNewSession(@Body() body: CreateSessionDTO, @RealIP() ip: string) {
+  async createNewSession(@Body() body: CreateSessionDTO) {
+    // Verify hCaptcha if token is provided
+    if (body.captchaToken) {
+      const captchaValid = await this.hcaptchaService.verifyCaptcha(
+        body.captchaToken,
+        body.clientIp
+      );
+      if (!captchaValid) {
+        throw new BadRequestException('Invalid captcha');
+      }
+    }
+
     const user = await this.usersService.findUser(
       {
         email: body.email,
@@ -62,9 +75,12 @@ export class SessionsController {
     if (!(await this.argon2Service.comparePassword(body.password, hashed)))
       throw new NotFoundException('INCORRECT_CREDENTIALS');
     try {
+      // Use clientIp from payload, fallback to 'unknown' if not provided
+      const clientIp = body.clientIp || 'unknown';
+      
       const session = await this.sessionsService.createSession(
         user.id,
-        ip,
+        clientIp,
         true,
         body.userAgent,
       );

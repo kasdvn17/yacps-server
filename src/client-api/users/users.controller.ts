@@ -8,6 +8,7 @@ import {
   Post,
   Req,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import { CreateUserDTO } from './users.dto';
 import { UsersService } from './users.service';
@@ -15,9 +16,12 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { Argon2Service } from '../argon2/argon2.service';
 import { Public } from '../auth/auth.decorator';
 import { AuthGuard } from '../auth/auth.guard';
+import { HCaptchaService } from '../hcaptcha/hcaptcha.service';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { getRealIp } from '../utils';
 
 @Controller()
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, ThrottlerGuard)
 export class UsersController {
   private readonly logger = new Logger(UsersController.name);
 
@@ -25,11 +29,31 @@ export class UsersController {
     private prismaService: PrismaService,
     private usersService: UsersService,
     private argon2Service: Argon2Service,
+    private hcaptchaService: HCaptchaService,
   ) {}
 
   @Post('/')
   @Public()
+  // 3 signup attempts per minute per real IP
+  @Throttle({
+    default: {
+      limit: 3,
+      ttl: 60000,
+      getTracker: getRealIp,
+    },
+  })
   async createUser(@Body() body: CreateUserDTO) {
+    // Verify hCaptcha if token is provided
+    if (body.captchaToken) {
+      const captchaValid = await this.hcaptchaService.verifyCaptcha(
+        body.captchaToken,
+        body.clientIp
+      );
+      if (!captchaValid) {
+        throw new BadRequestException('Invalid captcha');
+      }
+    }
+
     const not_unique = await this.prismaService.user.findFirst({
       where: {
         OR: [{ username: body.username }, { email: body.email }],
