@@ -23,9 +23,10 @@ import { AuthGuard } from '../auth/auth.guard';
 import { Request } from 'express';
 import { Perms, Public } from '../auth/auth.decorator';
 import { UserPermissions } from 'constants/permissions';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
 @Controller()
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, ThrottlerGuard)
 export class SessionsController {
   constructor(
     private prismaService: PrismaService,
@@ -37,6 +38,39 @@ export class SessionsController {
 
   @Post('/')
   @Public()
+  @Throttle({ 
+    default: { 
+      limit: 5, 
+      ttl: 60000,
+      getTracker: (req) => {
+        // Try to get real IP from various headers
+        const xForwardedFor = req.headers['x-forwarded-for'];
+        const xRealIp = req.headers['x-real-ip'];
+        const cfConnectingIp = req.headers['cf-connecting-ip'];
+        const xConnectingIp = req.headers['x-connecting-ip'];
+        
+        // Return first valid IP found
+        if (cfConnectingIp && typeof cfConnectingIp === 'string') {
+          return cfConnectingIp;
+        }
+        if (xConnectingIp && typeof xConnectingIp === 'string') {
+          return xConnectingIp;
+        }
+        if (xRealIp && typeof xRealIp === 'string') {
+          return xRealIp;
+        }
+        if (xForwardedFor) {
+          // X-Forwarded-For can contain multiple IPs, get the first one
+          const forwarded = Array.isArray(xForwardedFor) ? xForwardedFor[0] : xForwardedFor;
+          const firstIp = forwarded.split(',')[0].trim();
+          if (firstIp) return firstIp;
+        }
+        
+        // Fallback to connection IP
+        return req.ip || req.connection?.remoteAddress || 'unknown';
+      }
+    } 
+  }) // 5 login attempts per minute per real IP
   async createNewSession(@Body() body: CreateSessionDTO, @RealIP() ip: string) {
     const user = await this.usersService.findUser(
       {
