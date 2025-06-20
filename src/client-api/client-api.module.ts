@@ -29,7 +29,7 @@ import { getRealIp } from './utils';
     }),
     ThrottlerModule.forRoot([
       {
-        limit: 10,
+        limit: 5,
         ttl: 1000,
         getTracker: getRealIp,
       },
