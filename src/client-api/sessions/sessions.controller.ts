@@ -66,6 +66,7 @@ export class SessionsController {
         user.id,
         ip,
         true,
+        body.userAgent,
       );
       const token = await this.jwtService.signAsync(session);
       return { data: token };
@@ -106,5 +107,19 @@ export class SessionsController {
     });
     const data = await this.sessionsService.findSessions(queries);
     return data;
+  }
+
+  @Delete('/all')
+  async destroyAllSessions(@Req() req: Request) {
+    const userId: string = req['user'].id;
+    const currentSessionId: string = req['session'].id;
+
+    // Delete all sessions except the current one to keep user logged in
+    const deletedCount = await this.sessionsService.deleteAllUserSessions(userId, currentSessionId);
+
+    return {
+      message: 'All other sessions have been terminated',
+      deletedSessions: deletedCount,
+    };
   }
 }
