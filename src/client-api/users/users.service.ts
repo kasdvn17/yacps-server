@@ -10,7 +10,7 @@ export class UsersService {
   async findUser(
     fields: Partial<User>,
     isDeleted: boolean = false,
-    includeHash: boolean = false,
+    includeHash: boolean | undefined = false,
   ): Promise<User | null> {
     return (
       (await this.prismaService.user.findFirst({

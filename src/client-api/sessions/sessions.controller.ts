@@ -4,7 +4,6 @@ import {
   Controller,
   Delete,
   Get,
-  InternalServerErrorException,
   Logger,
   NotFoundException,
   Post,
@@ -17,7 +16,6 @@ import { CreateSessionDTO } from './sessions.dto';
 import { Session } from '@prisma/client';
 import { UsersService } from '../users/users.service';
 import { Argon2Service } from '../argon2/argon2.service';
-import { RealIP } from 'nestjs-real-ip';
 import { PrismaService } from '@/prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { AuthGuard } from '../auth/auth.guard';
@@ -26,6 +24,9 @@ import { Perms, Public } from '../auth/auth.decorator';
 import { UserPermissions } from 'constants/permissions';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { getRealIp } from '../utils';
+import { HCaptchaService } from '../hcaptcha/hcaptcha.service';
+import { Config } from 'config';
+import { RealIP } from 'nestjs-real-ip';
 
 @Controller()
 @UseGuards(AuthGuard, ThrottlerGuard)
@@ -37,6 +38,7 @@ export class SessionsController {
     private usersService: UsersService,
     private argon2Service: Argon2Service,
     private jwtService: JwtService,
+    private hCaptchaService: HCaptchaService,
   ) {}
 
   @Post('/')
@@ -49,10 +51,30 @@ export class SessionsController {
       getTracker: getRealIp,
     },
   })
-  async createNewSession(@Body() body: CreateSessionDTO, @RealIP() ip: string) {
+  async createNewSession(
+    @Req() req: Request,
+    @Body() body: CreateSessionDTO,
+    @RealIP() no_captcha_ip: string,
+  ) {
+    if (Config.ENABLE_CAPTCHA) {
+      //Require hCaptcha token
+      if (!body.captchaToken) {
+        throw new BadRequestException('INVALID_CAPTCHA');
+      }
+      const captchaValid = await this.hCaptchaService.verifyCaptcha(
+        body.captchaToken,
+        body.clientIp,
+      );
+      if (!captchaValid) {
+        throw new BadRequestException('INVALID_CAPTCHA');
+      }
+    }
+
     const user = await this.usersService.findUser(
       {
         email: body.email,
+        status: 'ACTIVE',
+        isDeleted: false,
       },
       false,
       true,
@@ -61,18 +83,18 @@ export class SessionsController {
     const hashed = user.password;
     if (!(await this.argon2Service.comparePassword(body.password, hashed)))
       throw new NotFoundException('INCORRECT_CREDENTIALS');
-    try {
-      const session = await this.sessionsService.createSession(
-        user.id,
-        ip,
-        true,
-      );
-      const token = await this.jwtService.signAsync(session);
-      return { data: token };
-    } catch (err) {
-      this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
-    }
+    // Use clientIp from payload, fallback to 'unknown' if not provided
+    let clientIp = body.clientIp;
+    if (!clientIp && Config.ENABLE_CAPTCHA) clientIp = 'unknown';
+
+    const session = await this.sessionsService.createSession(
+      user.id,
+      clientIp || no_captcha_ip || getRealIp(req) || 'unknown',
+      true,
+      body.userAgent,
+    );
+    const token = await this.jwtService.signAsync(session);
+    return { data: token };
   }
 
   @Get('/me')
@@ -106,5 +128,14 @@ export class SessionsController {
     });
     const data = await this.sessionsService.findSessions(queries);
     return data;
+  }
+
+  @Delete('/all')
+  async destroyAllSessions(@Req() req: Request) {
+    const userId: string = req['user'].id;
+    const currentSessionId: string = req['session'].id;
+
+    // Delete all sessions except the current one to keep user logged in
+    await this.sessionsService.deleteAllUserSessions(userId, currentSessionId);
   }
 }
