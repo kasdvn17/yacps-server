@@ -42,6 +42,7 @@ export class PermissionsService {
     bitPerms: PermissionBits,
     permToCheck: PermissionBit | PermissionName,
   ): boolean {
+    if ((bitPerms & UserPermissions.ADMINISTRATOR) != 0n) return true;
     if (typeof permToCheck == 'string') {
       return (bitPerms & this.get_bit(permToCheck)) == 0n ? false : true;
     } else {
@@ -49,7 +50,7 @@ export class PermissionsService {
     }
   }
 
-  // should only be used in the frontend admin to see all permissions, other modules, controllers use hasPerms most
+  // should only be used in the frontend admin to see all permissions, other modules, controllers mostly use hasPerms
   compute(bitPerms: PermissionBits): PermissionName[] {
     return Object.entries(UserPermissions)
       .filter(([, val]) => (bitPerms & val) !== 0n)

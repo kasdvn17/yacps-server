@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -22,7 +22,7 @@ model User {
   perms    BigInt  @default(0)
 
   isDeleted Boolean    @default(false)
-  status    UserStatus @default(ACTIVE) //@default(CONF_AWAITING)
+  status    UserStatus @default(CONF_AWAITING)
 
   roles         UserOnRole[]
   sessions      Session[]
@@ -37,7 +37,7 @@ model User {
 model Role {
   id String @id @default(uuid())
 
-  name  String
+  name  String @unique
   color String
   perms BigInt @default(0)
 
@@ -47,7 +47,7 @@ model Role {
   updatedAt DateTime @updatedAt
 }
 
-// mysql doesn't support sth simpler:(
+// explicit m-n relation to store metadata
 model UserOnRole {
   user   User   @relation(fields: [userId], references: [id])
   userId String
@@ -70,14 +70,16 @@ model Session {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   expiresAt DateTime
+
+  userAgent String?
 }
 
 model Rating {
   userId String @id
   user   User   @relation(fields: [userId], references: [id])
 
-  contests_cnt Int    @default(0)
-  contests_sum BigInt @default(0)
+  countContests      Int    @default(0)
+  totalContestPoints BigInt @default(0)
 
   points      Int   @default(0)
   mean        Float @default(0)
@@ -101,14 +103,14 @@ model Contest {
   name String
   slug String
 
-  min_rating Int @default(0)
-  max_rating Int @default(0)
+  minRating Int @default(0)
+  maxRating Int @default(0)
 
   isDeleted Boolean @default(false)
   authorId  String
 
   participants Contestant[]
-  problems     ProblemOnContest[]
+  problems     Problem[]
 }
 
 model Submission {
@@ -129,41 +131,96 @@ model Submission {
   updatedAt DateTime @updatedAt
 }
 
-model ProblemOnContest {
-  contest     Contest @relation(fields: [contestId], references: [id])
-  contestId   Int
-  problem     Problem @relation(fields: [problemSlug], references: [slug])
-  problemSlug String
+// explicit m-n relation
+// model ProblemOnContest {
+//   contest     Contest @relation(fields: [contestId], references: [id])
+//   contestId   Int
+//   problem     Problem @relation(fields: [problemSlug], references: [slug])
+//   problemSlug String
 
-  @@id([contestId, problemSlug])
+//   @@id([contestId, problemSlug])
+// }
+
+model Category {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  problems Problem[]
 }
+
+model Type {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  problems Problem[]
+}
+
+// explicit m-n relation: CategoryOnProblem
 
 model Problem {
   slug String @id
 
   name        String
   description String?
-  statement   String
-  category    String
+  categories  Category[]
+  types       Type[]
+  points      Int
 
-  points        Int
-  total_subs    Int
-  accepted_subs Int
+  input  String @default("stdin")
+  output String @default("stdout")
 
-  authorId  String
+  curators String[]
+  authors  String[]
+
+  pdfUuid String? @unique
+
+  contests         Contest[]
+  submissions      Submission[]
+  subStats         ProblemSubmissionsStats?
+  testEnvironments ProblemTestEnvironment?
+  solution         String?
+
+  total_subs Int @default(0)
+  AC_subs    Int @default(0)
+
   isDeleted Boolean @default(false)
-
-  contests    ProblemOnContest[]
-  submissions Submission[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-model CodingLanguage {
-  id        String  @id
-  name      String  @unique
-  available Boolean @default(false)
+model ProblemTestEnvironment {
+  problemSlug String  @id
+  problem     Problem @relation(fields: [problemSlug], references: [slug])
+
+  allowedLangs String[] @default([])
+  timeLimit    Int      @default(1) // seconds
+  memoryLimit  Int      @default(256) // in MB
+
+  PTEs ProblemLanguageTestEnvironment[]
+}
+
+// Specific configuration for a coding language
+model ProblemLanguageTestEnvironment {
+  problemSlug String                 @unique
+  PTE         ProblemTestEnvironment @relation(fields: [problemSlug], references: [problemSlug])
+  lang        String                 @unique
+
+  timeLimit   Int @default(1) // seconds
+  memoryLimit Int @default(256) // in MB
+
+  @@id([problemSlug, lang])
+}
+
+model ProblemSubmissionsStats {
+  problemSlug String  @id
+  problem     Problem @relation(fields: [problemSlug], references: [slug])
+
+  WA  Int @default(0)
+  RTE Int @default(0)
+  OLE Int @default(0)
+  IR  Int @default(0)
+  TLE Int @default(0)
+  MLE Int @default(0)
+  RE  Int @default(0)
 }
 
 enum Gender {

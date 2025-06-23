@@ -41,6 +41,7 @@ export class AuthGuard implements CanActivate {
         await this.sessionService.deleteSession(session.id);
         throw new UnauthorizedException();
       }
+
       if (requiredPerms && requiredPerms.length > 0) {
         const missingPerms = requiredPerms.filter(
           (v) => !this.permissionsService.hasPerms(session.user.perms, v),
