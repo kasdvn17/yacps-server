@@ -4,7 +4,6 @@ import {
   Controller,
   Delete,
   Get,
-  InternalServerErrorException,
   Logger,
   NotFoundException,
   Post,
@@ -26,6 +25,8 @@ import { UserPermissions } from 'constants/permissions';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { getRealIp } from '../utils';
 import { HCaptchaService } from '../hcaptcha/hcaptcha.service';
+import { Config } from 'config';
+import { RealIP } from 'nestjs-real-ip';
 
 @Controller()
 @UseGuards(AuthGuard, ThrottlerGuard)
@@ -37,7 +38,7 @@ export class SessionsController {
     private usersService: UsersService,
     private argon2Service: Argon2Service,
     private jwtService: JwtService,
-    private hcaptchaService: HCaptchaService,
+    private hCaptchaService: HCaptchaService,
   ) {}
 
   @Post('/')
@@ -50,22 +51,30 @@ export class SessionsController {
       getTracker: getRealIp,
     },
   })
-  async createNewSession(@Body() body: CreateSessionDTO) {
-    // Require hCaptcha token
-    if (!body.captchaToken) {
-      throw new BadRequestException('Captcha token is required');
-    }
-    const captchaValid = await this.hcaptchaService.verifyCaptcha(
-      body.captchaToken,
-      body.clientIp,
-    );
-    if (!captchaValid) {
-      throw new BadRequestException('Invalid captcha');
+  async createNewSession(
+    @Req() req: Request,
+    @Body() body: CreateSessionDTO,
+    @RealIP() no_captcha_ip: string,
+  ) {
+    if (Config.ENABLE_CAPTCHA) {
+      //Require hCaptcha token
+      if (!body.captchaToken) {
+        throw new BadRequestException('INVALID_CAPTCHA');
+      }
+      const captchaValid = await this.hCaptchaService.verifyCaptcha(
+        body.captchaToken,
+        body.clientIp,
+      );
+      if (!captchaValid) {
+        throw new BadRequestException('INVALID_CAPTCHA');
+      }
     }
 
     const user = await this.usersService.findUser(
       {
         email: body.email,
+        status: 'ACTIVE',
+        isDeleted: false,
       },
       false,
       true,
@@ -74,22 +83,18 @@ export class SessionsController {
     const hashed = user.password;
     if (!(await this.argon2Service.comparePassword(body.password, hashed)))
       throw new NotFoundException('INCORRECT_CREDENTIALS');
-    try {
-      // Use clientIp from payload, fallback to 'unknown' if not provided
-      const clientIp = body.clientIp || 'unknown';
+    // Use clientIp from payload, fallback to 'unknown' if not provided
+    let clientIp = body.clientIp;
+    if (!clientIp && Config.ENABLE_CAPTCHA) clientIp = 'unknown';
 
-      const session = await this.sessionsService.createSession(
-        user.id,
-        clientIp,
-        true,
-        body.userAgent,
-      );
-      const token = await this.jwtService.signAsync(session);
-      return { data: token };
-    } catch (err) {
-      this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
-    }
+    const session = await this.sessionsService.createSession(
+      user.id,
+      clientIp || no_captcha_ip || getRealIp(req) || 'unknown',
+      true,
+      body.userAgent,
+    );
+    const token = await this.jwtService.signAsync(session);
+    return { data: token };
   }
 
   @Get('/me')
@@ -131,14 +136,6 @@ export class SessionsController {
     const currentSessionId: string = req['session'].id;
 
     // Delete all sessions except the current one to keep user logged in
-    const deletedCount = await this.sessionsService.deleteAllUserSessions(
-      userId,
-      currentSessionId,
-    );
-
-    return {
-      message: 'All other sessions have been terminated',
-      deletedSessions: deletedCount,
-    };
+    await this.sessionsService.deleteAllUserSessions(userId, currentSessionId);
   }
 }
