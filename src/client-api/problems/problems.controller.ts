@@ -68,13 +68,19 @@ export class ProblemsController {
     @Query('deleted') isDeleted: number, // 0: false, 1: true, 2: both
   ) {
     if (
-      isDeleted >= 1 &&
-      !this.permissionsService.hasPerms(
-        req['user'].perms,
-        UserPermissions.VIEW_DELETED_PROBLEMS,
+      typeof isDeleted == 'string' &&
+      !isNaN(isDeleted) &&
+      parseInt(isDeleted) >= 1
+    ) {
+      if (
+        typeof req['user']?.perms != 'bigint' ||
+        !this.permissionsService.hasPerms(
+          req['user'].perms,
+          UserPermissions.VIEW_DELETED_PROBLEMS,
+        )
       )
-    )
-      throw new ForbiddenException();
+        throw new ForbiddenException();
+    }
     const problem = await this.problemsService.findProblem(slug);
     if (!problem) throw new NotFoundException('PROBLEM_NOT_FOUND');
     return {
