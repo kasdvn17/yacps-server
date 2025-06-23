@@ -1,8 +1,9 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import axios from 'axios';
 
 @Injectable()
 export class HCaptchaService {
+  private readonly logger = new Logger(HCaptchaService.name);
   private readonly secret = process.env.HCAPTCHA_SECRET_KEY;
   private readonly verifyUrl = 'https://api.hcaptcha.com/siteverify';
 
@@ -33,13 +34,16 @@ export class HCaptchaService {
       const result = response.data;
 
       if (!result.success) {
-        console.error('hCaptcha verification failed:', result['error-codes']);
+        this.logger.error(
+          'hCaptcha verification failed:',
+          result['error-codes'],
+        );
         return false;
       }
 
       return true;
     } catch (error) {
-      console.error('hCaptcha verification error:', error);
+      this.logger.error('hCaptcha verification error:', error);
       return false;
     }
   }
