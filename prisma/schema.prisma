@@ -236,13 +236,20 @@ enum UserStatus {
   CONF_AWAITING
 }
 
+enum JudgeStatus {
+  ACTIVE
+  DISABLED
+}
+
 // Judge
 model Judge {
-  id    String      @id
-  name  String      @unique
-  host  String      @unique
-  ip    String?
-  token JudgeToken?
+  id   String  @id @default(uuid())
+  name String  @unique
+  host String  @unique
+  ip   String?
+
+  status JudgeStatus
+  token  JudgeToken?
 
   isDeleted Boolean @default(false)
 
@@ -251,11 +258,11 @@ model Judge {
   updatedAt  DateTime @updatedAt
 }
 
+// generate jwt with payload: { id: JudgeToken.createdAt + JudgeToken.id }
 model JudgeToken {
-  id      String @id // ensure that when judge tokens are (re)generated, they are jwt-ed from different ids
+  id      String @id @default(cuid()) // ensure that when judge tokens are (re)generated, they are jwt-ed from different ids
   judge   Judge  @relation(fields: [judgeId], references: [id])
   judgeId String @unique
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }
