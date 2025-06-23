@@ -248,7 +248,7 @@ model Judge {
   host String  @unique
   ip   String?
 
-  status JudgeStatus
+  status JudgeStatus @default(ACTIVE)
   token  JudgeToken?
 
   isDeleted Boolean @default(false)
