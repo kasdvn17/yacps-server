@@ -87,6 +87,7 @@ export class ProblemsController {
     return {
       code: problem.slug,
       name: problem.name,
+      description: problem.description,
 
       timeLimit: problem.testEnvironments?.timeLimit || '',
       memoryLimit: problem.testEnvironments?.memoryLimit || '',
