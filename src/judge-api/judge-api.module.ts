@@ -7,7 +7,6 @@ import { MessageGateway } from './message/message.gateway';
   imports: [
     PrismaModule,
     JwtModule.register({
-      global: true,
       secret: process.env.JWT_JUDGE_TOKEN,
     }),
   ],
