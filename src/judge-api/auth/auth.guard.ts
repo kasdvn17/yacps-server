@@ -19,25 +19,30 @@ export class JAuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const client: Socket = context.switchToWs().getClient();
-    const token = client.handshake.auth.token;
-    if (!token) throw new WsException('INVALID_TOKEN');
-    try {
-      const payload = await this.jwtService.verifyAsync(token); // payload.id, payload.name, payload.createdAt
-      const judge = await this.prismaService.judge.findFirst({
-        where: {
-          token: {
-            id: payload.id,
-            createdAt: payload.createdAt,
-          },
+    const token = client.handshake.auth.judge_token;
+    const name = client.handshake.auth.judge_name;
+    if (!token || !name) throw new WsException('INVALID_CREDENTIALS');
+    const payload = await this.jwtService.verifyAsync(token); // payload.id, payload.name, payload.createdAt
+    const judge = await this.prismaService.judge.findFirst({
+      where: {
+        name,
+        token: {
+          id: payload.id,
+          createdAt: payload.createdAt,
         },
-      });
-      if (!judge) throw new WsException('INVALID_TOKEN');
-      if (judge.status != 'ACTIVE') throw new WsException('JUDGE_DISABLED');
-      client.data['judge'] = judge;
-      return true;
-    } catch (err) {
-      this.logger.error(err);
-      throw new WsException('UNKNOWN_ERROR');
-    }
+      },
+    });
+    if (!judge) throw new WsException('INVALID_CREDENTIALS');
+    if (judge.status != 'ACTIVE') throw new WsException('JUDGE_DISABLED');
+    client.data['judge'] = judge;
+    return true;
   }
+
+  // extractAuth(authHeader: string): { token: string; name: string } {
+  //   const splitted = authHeader.split(' ');
+  //   return {
+  //     token: splitted[1],
+  //     name: splitted[0],
+  //   };
+  // }
 }

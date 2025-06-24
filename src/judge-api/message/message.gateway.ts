@@ -33,6 +33,7 @@ export class MessageGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() data: any,
   ): void {
+    this.logger.debug(client.data.judge);
     this.logger.debug(client.id);
     this.logger.debug(data);
   }
