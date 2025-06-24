@@ -49,7 +49,6 @@ export class ProblemsController {
     return problems.map((v) => ({
       code: v.slug,
       name: v.name,
-      description: v.description,
 
       category: v.categories.map((x) => x.name),
       type: v.types.map((x) => x.name),
@@ -84,6 +83,7 @@ export class ProblemsController {
     }
     const problem = await this.problemsService.findProblem(slug);
     if (!problem) throw new NotFoundException('PROBLEM_NOT_FOUND');
+    console.log(problem);
     return {
       code: problem.slug,
       name: problem.name,
