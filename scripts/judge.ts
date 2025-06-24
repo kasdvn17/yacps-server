@@ -16,45 +16,6 @@ function ask(question) {
   });
 }
 
-// async function proceed() {
-//   await prisma.$connect();
-//   const oldT = Date.now();
-//   const role_name = 'Superuser_Role_' + oldT.toString();
-//   const perms = new PermissionsService().addPerms(0n, ['ADMINISTRATOR']).newBit;
-//   const role = await prisma.role.create({
-//     data: {
-//       name: role_name,
-//       color: 'ffffff',
-//       perms,
-//     },
-//   });
-//   const user_name = 'Superuser_User_' + oldT.toString();
-//   const user_email = `emergency_${oldT}@script.com`;
-//   const user_pwd = random(15);
-//   await prisma.user.create({
-//     data: {
-//       email: user_email,
-//       username: user_name,
-//       password: await new Argon2Service().hashPassword(user_pwd),
-//       perms,
-
-//       status: 'ACTIVE',
-//       roles: {
-//         create: {
-//           roleId: role.id,
-//           assignedAt: new Date(oldT),
-//           assignedBy: 'EmergencyScript',
-//         },
-//       },
-//     },
-//   });
-//   const newT = Date.now();
-//   rl.write(
-//     `User created:\nEmail: ${user_email}\nPassword: ${user_pwd}\nOperation completed in ${(newT - oldT) / 1000}s`,
-//   );
-//   rl.close();
-// }
-
 async function create() {
   await prisma.$connect();
   //   const oldT = Date.now();
@@ -102,7 +63,6 @@ function main() {
     console.log(`Help options:
     --help, -h        Show this help message
     --create          Create a custom judge, including judge token
-    --verbose         Enable verbose mode
     `);
     process.exit(0);
   }

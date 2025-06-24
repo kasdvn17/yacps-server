@@ -167,8 +167,8 @@ model Problem {
   input  String @default("stdin")
   output String @default("stdout")
 
-  curators String[]
-  authors  String[]
+  curators String[] @default([])
+  authors  String[] @default([])
 
   pdfUuid String? @unique
 
