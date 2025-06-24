@@ -49,6 +49,7 @@ export class ProblemsController {
     return problems.map((v) => ({
       code: v.slug,
       name: v.name,
+      description: v.description,
 
       category: v.categories.map((x) => x.name),
       type: v.types.map((x) => x.name),
