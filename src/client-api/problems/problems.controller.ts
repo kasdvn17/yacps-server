@@ -83,9 +83,11 @@ export class ProblemsController {
     }
     const problem = await this.problemsService.findProblem(slug);
     if (!problem) throw new NotFoundException('PROBLEM_NOT_FOUND');
+    console.log(problem);
     return {
       code: problem.slug,
       name: problem.name,
+      description: problem.description,
 
       timeLimit: problem.testEnvironments?.timeLimit || '',
       memoryLimit: problem.testEnvironments?.memoryLimit || '',
