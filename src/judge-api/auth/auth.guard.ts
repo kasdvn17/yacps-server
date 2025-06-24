@@ -19,7 +19,6 @@ export class JAuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const client: Socket = context.switchToWs().getClient();
-    console.log(client.id);
     const token = client.handshake.auth.token;
     if (!token) throw new WsException('INVALID_TOKEN');
     try {
@@ -33,7 +32,7 @@ export class JAuthGuard implements CanActivate {
         },
       });
       if (!judge) throw new WsException('INVALID_TOKEN');
-      if (judge.status != 'ACTIVE') throw new WsException('JUDGE_DISALBED');
+      if (judge.status != 'ACTIVE') throw new WsException('JUDGE_DISABLED');
       client.data['judge'] = judge;
       return true;
     } catch (err) {
