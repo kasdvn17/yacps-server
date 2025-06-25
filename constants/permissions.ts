@@ -11,7 +11,7 @@ User roles must explicitly allow or deny permissions. If not set, permissions de
 export const UserPermissions = {
   // Roles, Permissions
   ADMINISTRATOR: 1n << 0n,
-  VIEW_ADMIN_PAGE: 1n << 1n,
+  VIEW_MANAGEMENT_PAGE: 1n << 1n,
   CREATE_ROLES: 1n << 2n,
   MODIFY_ROLES_INFO: 1n << 3n,
   MODIFY_ROLES_PERMISSIONS: 1n << 4n,

@@ -21,7 +21,6 @@ import { HCaptchaService } from '../hcaptcha/hcaptcha.service';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { getRealIp } from '../utils';
 import { Config } from 'config';
-import { PermissionsService } from '../auth/permissions.service';
 import { UserPermissions } from 'constants/permissions';
 
 @Controller()
@@ -33,8 +32,7 @@ export class UsersController {
     private prismaService: PrismaService,
     private usersService: UsersService,
     private argon2Service: Argon2Service,
-    private hcaptchaService: HCaptchaService,
-    private permissionsService: PermissionsService,
+    private hCaptchaService: HCaptchaService,
   ) {}
 
   @Post('/')
@@ -55,7 +53,7 @@ export class UsersController {
       if (!body.captchaToken) {
         throw new BadRequestException('INVALID_CAPTCHA');
       }
-      const captchaValid = await this.hcaptchaService.verifyCaptcha(
+      const captchaValid = await this.hCaptchaService.verifyCaptcha(
         body.captchaToken,
         body.clientIp,
       );

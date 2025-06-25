@@ -17,7 +17,7 @@ export class AuthGuard implements CanActivate {
   constructor(
     private jwtService: JwtService,
     private reflector: Reflector,
-    private sessionService: SessionsService,
+    private sessionsService: SessionsService,
     private permissionsService: PermissionsService,
   ) {}
 
@@ -33,12 +33,12 @@ export class AuthGuard implements CanActivate {
     }
     try {
       const payload = await this.jwtService.verifyAsync(token);
-      const session = await this.sessionService.findSessionWithUser({
+      const session = await this.sessionsService.findSessionWithUser({
         id: payload.id,
       });
       if (!session) throw new UnauthorizedException();
       if (!session.user || session.expiresAt.getTime() <= Date.now()) {
-        await this.sessionService.deleteSession(session.id);
+        await this.sessionsService.deleteSession(session.id);
         throw new UnauthorizedException();
       }
 
