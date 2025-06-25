@@ -30,4 +30,13 @@ export class ProblemsService {
       },
     });
   }
+
+  async exists(slug: string) {
+    const prob = await this.prismaService.problem.findFirst({
+      where: {
+        slug,
+      },
+    });
+    return !!prob;
+  }
 }

@@ -1,7 +1,11 @@
 import {
+  Body,
+  ConflictException,
   Controller,
   ForbiddenException,
   Get,
+  InternalServerErrorException,
+  Logger,
   NotFoundException,
   Param,
   Post,
@@ -15,12 +19,17 @@ import { UserPermissions } from 'constants/permissions';
 import { ProblemsService } from './problems.service';
 import { PermissionsService } from '../auth/permissions.service';
 import { Request } from 'express';
+import { CreateProblemDTO } from './problems.dto';
+import { PrismaService } from '@/prisma/prisma.service';
 
 @Controller()
 export class ProblemsController {
+  private readonly logger = new Logger(ProblemsController.name);
+
   constructor(
     private readonly problemsService: ProblemsService,
     private readonly permissionsService: PermissionsService,
+    private readonly prismaService: PrismaService,
   ) {}
 
   @Get('/all')
@@ -112,5 +121,37 @@ export class ProblemsController {
   @Post('/')
   @UseGuards(AuthGuard)
   @Perms([UserPermissions.CREATE_NEW_PROBLEM])
-  createProblem() {}
+  async createProblem(@Body() data: CreateProblemDTO) {
+    if (await this.problemsService.exists(data.slug))
+      throw new ConflictException('PROBLEM_ALREADY_FOUND');
+
+    try {
+      const problem = await this.prismaService.problem.create({
+        data: {
+          slug: data.slug,
+          name: data.name,
+          description: data.description,
+          points: data.points,
+          input: data.input,
+          output: data.output,
+          curators: data.curators,
+          authors: data.authors,
+          pdfUuid: data.pdfUuid,
+          categoryId: data.categoryId,
+          types: {
+            connect: data.types?.map((v) => ({
+              id: v,
+            })),
+          },
+          solution: data.solution,
+          subStats: { create: {} },
+          testEnvironments: { create: {} },
+        },
+      });
+      return problem;
+    } catch (err) {
+      this.logger.error(err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR');
+    }
+  }
 }
