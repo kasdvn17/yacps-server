@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client';
-import e from 'express';
 import readline from 'readline';
 
 const prisma = new PrismaClient();
