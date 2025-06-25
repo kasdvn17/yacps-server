@@ -11,7 +11,7 @@ export class ProblemsService {
         isDeleted,
       },
       include: {
-        categories: true,
+        category: true,
         types: true,
       },
     });
@@ -24,7 +24,7 @@ export class ProblemsService {
         isDeleted,
       },
       include: {
-        categories: true,
+        category: true,
         types: true,
         testEnvironments: true,
       },

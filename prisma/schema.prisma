@@ -160,8 +160,6 @@ model Problem {
 
   name        String
   description String?
-  categories  Category[]
-  types       Type[]
   points      Int
 
   input  String @default("stdin")
@@ -172,6 +170,10 @@ model Problem {
 
   pdfUuid String? @unique
 
+  categoryId Int      @default(0)
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  types            Type[]
   contests         Contest[]
   submissions      Submission[]
   subStats         ProblemSubmissionsStats?

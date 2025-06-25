@@ -30,7 +30,7 @@ export class ProblemsController {
       code: v.slug,
       name: v.name,
 
-      category: v.categories.map((x) => x.name),
+      category: v.category.name,
       type: v.types.map((x) => x.name),
       points: v.points,
       solution: !!v.solution,
@@ -50,7 +50,7 @@ export class ProblemsController {
       code: v.slug,
       name: v.name,
 
-      category: v.categories.map((x) => x.name),
+      category: v.category.name,
       type: v.types.map((x) => x.name),
       points: v.points,
       solution: !!v.solution,
@@ -83,7 +83,6 @@ export class ProblemsController {
     }
     const problem = await this.problemsService.findProblem(slug);
     if (!problem) throw new NotFoundException('PROBLEM_NOT_FOUND');
-    console.log(problem);
     return {
       code: problem.slug,
       name: problem.name,
@@ -96,14 +95,13 @@ export class ProblemsController {
       input: problem.input,
       output: problem.output,
 
-      category: problem.categories.map((x) => x.name),
+      category: problem.category.name,
       type: problem.types.map((x) => x.name),
       points: problem.points,
-      solution: !!problem.solution,
+      solution: problem.solution,
       author: problem.authors,
       curator: problem.curators,
       pdf: problem.pdfUuid,
-
       stats: {
         submissions: problem.total_subs,
         ACSubmissions: problem.AC_subs,
