@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import e from 'express';
 import readline from 'readline';
 
 const prisma = new PrismaClient();
@@ -13,6 +14,36 @@ function ask(question) {
       resolve(answer);
     });
   });
+}
+
+async function connect() {
+  await prisma.$connect();
+  const problemSlug = await ask('Enter the slug of the problem: ');
+  const typeId = await ask('Enter the ID of the type: ');
+  if (
+    typeof problemSlug != 'string' ||
+    typeof typeId != 'string' ||
+    isNaN(parseInt(typeId))
+  ) {
+    console.log('Invalid option');
+    process.exit(1);
+  }
+  const tId = parseInt(typeId);
+  console.log(problemSlug, tId);
+  await prisma.problem.update({
+    where: {
+      slug: problemSlug,
+    },
+    data: {
+      types: {
+        connect: {
+          id: tId,
+        },
+      },
+    },
+  });
+  rl.write('Type connected');
+  rl.close();
 }
 
 async function create() {
@@ -41,10 +72,13 @@ function main() {
 Help options:
     --help, -h        Show this help message
     --create          Create a type
+    --connect         Connect a type to a problem
     `);
     process.exit(0);
   }
   if (args.includes('--create')) create().catch((err) => console.error(err));
+  else if (args.includes('--connect'))
+    connect().catch((err) => console.error(err));
 }
 
 main();
