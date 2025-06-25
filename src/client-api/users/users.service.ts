@@ -9,7 +9,7 @@ export class UsersService {
 
   async findUser(
     fields: Partial<User>,
-    isDeleted: boolean = false,
+    isDeleted: boolean | undefined = false,
     includeHash: boolean | undefined = false,
   ): Promise<User | null> {
     return (
