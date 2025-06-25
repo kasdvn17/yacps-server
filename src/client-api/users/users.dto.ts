@@ -15,6 +15,7 @@ export class CreateUserDTO {
   username: string;
 
   @IsString()
+  @IsOptional()
   fullname?: string;
 
   @IsOptional()

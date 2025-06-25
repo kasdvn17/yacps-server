@@ -160,7 +160,7 @@ model Problem {
 
   name        String
   description String?
-  points      Int
+  points      Float
 
   input  String @default("stdin")
   output String @default("stdout")
@@ -168,7 +168,7 @@ model Problem {
   curators String[] @default([])
   authors  String[] @default([])
 
-  pdfUuid String? @unique
+  pdfUuid String?
 
   categoryId Int      @default(0)
   category   Category @relation(fields: [categoryId], references: [id])
