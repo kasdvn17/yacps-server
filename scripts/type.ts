@@ -19,18 +19,18 @@ async function create() {
   await prisma.$connect();
   //   const oldT = Date.now();
   const name = await ask(
-    'Enter the name of the category (only alphabets and numeric characters): ',
+    'Enter the name of the type (only alphabets and numeric characters): ',
   );
   if (typeof name != 'string' || !new RegExp('^[a-zA-Z0-9 ]*$').test(name)) {
     console.log('Invalid option.');
     process.exit(1);
   }
-  const category = await prisma.category.create({
+  const type = await prisma.type.create({
     data: {
       name,
     },
   });
-  rl.write('Category created: ' + category.name);
+  rl.write('Type created: ' + type.name);
   rl.close();
 }
 
@@ -40,7 +40,7 @@ function main() {
     console.log(`This is an emergency script to modify categories only. If you want to modify further, please edit directly in the database or the admin page.\n
 Help options:
     --help, -h        Show this help message
-    --create          Create a category
+    --create          Create a type
     `);
     process.exit(0);
   }
