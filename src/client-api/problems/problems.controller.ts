@@ -36,13 +36,16 @@ export class ProblemsController {
   @Public()
   @UseGuards(AuthGuard)
   async getAllProblems(@Req() req: Request) {
-    const hasViewAllProbs =
+    let hasViewAllProbs = false;
+    if (
       req['user'] &&
       req['user'].perms &&
       this.permissionsService.hasPerms(
         req['user'].perms,
         UserPermissions.VIEW_ALL_PROBLEMS,
-      );
+      )
+    )
+      hasViewAllProbs = true;
     let problems: (Problem & { category: Category; types: Type[] })[];
     if (hasViewAllProbs)
       problems = await this.problemsService.findAllSystemProblems();
@@ -66,16 +69,17 @@ export class ProblemsController {
   }
 
   @Get('/:slug')
-  @UseGuards(AuthGuard)
   @Public()
+  @UseGuards(AuthGuard)
   async getSpecificProblem(@Req() req: Request, @Param('slug') slug: string) {
     const problem = await this.problemsService.findProblem(slug, undefined);
     if (!problem) throw new NotFoundException('PROBLEM_NOT_FOUND');
     if (problem.isDeleted || problem.status == 'HIDDEN') {
       if (
         !req['user'] ||
+        !req['user'].perms ||
         !this.permissionsService.hasPerms(
-          req['user']?.perms ?? 0,
+          req['user'].perms,
           UserPermissions.VIEW_ALL_PROBLEMS,
         )
       )
