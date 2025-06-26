@@ -27,7 +27,7 @@ export class ProblemsService {
     });
   }
 
-  async findProblem(slug: string, isDeleted: boolean | undefined = false) {
+  async findProblem(slug: string, isDeleted: boolean | undefined) {
     return await this.prismaService.problem.findFirst({
       where: {
         slug,

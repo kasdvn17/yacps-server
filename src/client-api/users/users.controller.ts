@@ -67,13 +67,18 @@ export class UsersController {
         username: body.username,
       },
       undefined,
+      undefined,
     );
     if (usedUsername != null && usedUsername.id)
       throw new ConflictException('USERNAME_UNAVAILABLE');
 
-    const usedEmail = await this.usersService.findUser({
-      email: body.email,
-    });
+    const usedEmail = await this.usersService.findUser(
+      {
+        email: body.email,
+      },
+      false,
+      undefined,
+    );
     if (usedEmail != null && usedEmail.id)
       throw new ConflictException('EMAIL_IN_USE');
 
@@ -106,13 +111,18 @@ export class UsersController {
         username: body.username,
       },
       undefined,
+      undefined,
     );
     if (usedUsername != null && usedUsername.id)
       throw new ConflictException('USERNAME_UNAVAILABLE');
 
-    const usedEmail = await this.usersService.findUser({
-      email: body.email,
-    });
+    const usedEmail = await this.usersService.findUser(
+      {
+        email: body.email,
+      },
+      true,
+      undefined,
+    );
     if (usedEmail != null && usedEmail.id)
       throw new ConflictException('EMAIL_IN_USE');
 
