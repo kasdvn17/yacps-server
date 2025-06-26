@@ -9,8 +9,8 @@ export class UsersService {
 
   async findUser(
     fields: Partial<User>,
-    isDeleted: boolean | undefined = false,
-    includeHash: boolean | undefined = false,
+    isDeleted: boolean | undefined,
+    includeHash: boolean | undefined,
   ): Promise<User | null> {
     return (
       (await this.prismaService.user.findFirst({
