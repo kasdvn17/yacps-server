@@ -99,7 +99,7 @@ export class UsersController {
 
   @Post('/force')
   @UseGuards(AuthGuard)
-  @Perms([UserPermissions.CREATE_NEW_USERS])
+  @Perms([UserPermissions.FORCE_CREATE_USERS])
   async forceCreateUser(@Body() body: CreateUserDTO) {
     const usedUsername = await this.usersService.findUser(
       {
