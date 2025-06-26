@@ -20,6 +20,7 @@ import { PermissionsService } from '../auth/permissions.service';
 import { Request } from 'express';
 import { CreateProblemDTO } from './problems.dto';
 import { PrismaService } from '@/prisma/prisma.service';
+import { Category, Problem, Type } from '@prisma/client';
 
 @Controller()
 export class ProblemsController {
@@ -32,28 +33,20 @@ export class ProblemsController {
   ) {}
 
   @Get('/all')
-  async getAllPublicProblems() {
-    const problems = await this.problemsService.findAllPublicProblems();
-    return problems.map((v) => ({
-      code: v.slug,
-      name: v.name,
-
-      category: v.category.name,
-      type: v.types.map((x) => x.name),
-      points: v.points,
-      solution: !!v.solution,
-      stats: {
-        submissions: v.total_subs,
-        ACSubmissions: v.AC_subs,
-      },
-    }));
-  }
-
-  @Get('/all/system')
+  @Public()
   @UseGuards(AuthGuard)
-  @Perms([UserPermissions.VIEW_ALL_PROBLEMS])
-  async getAllSystemProblems() {
-    const problems = await this.problemsService.findAllSystemProblems();
+  async getAllProblems(@Req() req: Request) {
+    const hasViewAllProbs =
+      req['user'] &&
+      req['user'].perms &&
+      this.permissionsService.hasPerms(
+        req['user'].perms,
+        UserPermissions.VIEW_ALL_PROBLEMS,
+      );
+    let problems: (Problem & { category: Category; types: Type[] })[];
+    if (hasViewAllProbs)
+      problems = await this.problemsService.findAllSystemProblems();
+    else problems = await this.problemsService.findAllPublicProblems();
     return problems.map((v) => ({
       code: v.slug,
       name: v.name,
@@ -62,10 +55,13 @@ export class ProblemsController {
       type: v.types.map((x) => x.name),
       points: v.points,
       solution: !!v.solution,
+      status: v.status, // ACTIVE, HIDDEN, LOCKED
       stats: {
         submissions: v.total_subs,
         ACSubmissions: v.AC_subs,
       },
+
+      isDeleted: v.isDeleted,
     }));
   }
 
