@@ -22,38 +22,40 @@ export class AuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const isProtected = this.reflector.get(Public, context.getHandler());
+    const isProtected =
+      this.reflector.get(Public, context.getHandler()) == undefined;
     const requiredPerms = this.reflector.get(Perms, context.getHandler()) || [];
-    if (isProtected != null) return true;
 
     const request = context.switchToHttp().getRequest();
     const token = this.extractToken(request);
-    if (!token) {
-      throw new UnauthorizedException();
-    }
-    try {
-      const payload = await this.jwtService.verifyAsync(token);
-      const session = await this.sessionsService.findSessionWithUser({
-        id: payload.id,
-      });
-      if (!session) throw new UnauthorizedException();
-      if (!session.user || session.expiresAt.getTime() <= Date.now()) {
-        await this.sessionsService.deleteSession(session.id);
-        throw new UnauthorizedException();
-      }
+    if (token) {
+      try {
+        const payload = await this.jwtService.verifyAsync(token);
+        const session = await this.sessionsService.findSessionWithUser({
+          id: payload.id,
+        });
+        if (!session) throw new UnauthorizedException('INVALID_TOKEN');
+        if (!session.user || session.expiresAt.getTime() <= Date.now()) {
+          await this.sessionsService.deleteSession(session.id);
+          throw new UnauthorizedException('INVALID_TOKEN');
+        }
 
-      if (requiredPerms && requiredPerms.length > 0) {
-        const missingPerms = requiredPerms.filter(
-          (v) => !this.permissionsService.hasPerms(session.user.perms, v),
-        );
-        if (missingPerms.length > 0) throw new ForbiddenException();
+        if (requiredPerms && requiredPerms.length > 0) {
+          const missingPerms = requiredPerms.filter(
+            (v) => !this.permissionsService.hasPerms(session.user.perms, v),
+          );
+          if (missingPerms.length > 0)
+            throw new ForbiddenException('INSUFFICIENT_PERMISSIONS');
+        }
+        request['user'] = session.user;
+        request['session'] = session;
+      } catch (err) {
+        if (err instanceof ForbiddenException)
+          throw new ForbiddenException('INSUFFICIENT_PERMISSIONS');
+        else throw new UnauthorizedException('INVALID_TOKEN');
       }
-      request['user'] = session.user;
-      request['session'] = session;
-    } catch (err) {
-      if (err instanceof ForbiddenException) throw new ForbiddenException();
-      else throw new UnauthorizedException();
-    }
+    } else if (isProtected && !token)
+      throw new UnauthorizedException('INVALID_TOKEN');
     return true;
   }
 
