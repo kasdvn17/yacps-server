@@ -13,7 +13,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
-import { Perms } from '../auth/auth.decorator';
+import { Perms, Public } from '../auth/auth.decorator';
 import { UserPermissions } from 'constants/permissions';
 import { ProblemsService } from './problems.service';
 import { PermissionsService } from '../auth/permissions.service';
@@ -70,8 +70,10 @@ export class ProblemsController {
   }
 
   @Get('/:slug')
+  @UseGuards(AuthGuard)
+  @Public()
   async getSpecificProblem(@Req() req: Request, @Param('slug') slug: string) {
-    const problem = await this.problemsService.findProblem(slug);
+    const problem = await this.problemsService.findProblem(slug, undefined);
     if (!problem) throw new NotFoundException('PROBLEM_NOT_FOUND');
     if (problem.isDeleted || problem.status == 'HIDDEN') {
       if (
@@ -81,7 +83,7 @@ export class ProblemsController {
           UserPermissions.VIEW_ALL_PROBLEMS,
         )
       )
-        throw new ForbiddenException();
+        throw new ForbiddenException('PROBLEM_UNAVAILABLE');
     }
     return {
       code: problem.slug,
