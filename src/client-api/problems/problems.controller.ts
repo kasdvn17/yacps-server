@@ -33,8 +33,8 @@ export class ProblemsController {
   ) {}
 
   @Get('/all')
-  async getAllProblems() {
-    const problems = await this.problemsService.findAllProblems();
+  async getAllPublicProblems() {
+    const problems = await this.problemsService.findAllPublicProblems();
     return problems.map((v) => ({
       code: v.slug,
       name: v.name,
@@ -50,11 +50,11 @@ export class ProblemsController {
     }));
   }
 
-  @Get('/all/deleted')
+  @Get('/all/system')
   @UseGuards(AuthGuard)
-  @Perms([UserPermissions.VIEW_DELETED_PROBLEMS])
-  async getAllDeletedProblems() {
-    const problems = await this.problemsService.findAllProblems(true);
+  @Perms([UserPermissions.VIEW_ALL_PROBLEMS])
+  async getAllSystemProblems() {
+    const problems = await this.problemsService.findAllSystemProblems();
     return problems.map((v) => ({
       code: v.slug,
       name: v.name,
@@ -71,27 +71,19 @@ export class ProblemsController {
   }
 
   @Get('/:slug')
-  async getSpecificProblem(
-    @Req() req: Request,
-    @Param('slug') slug: string,
-    @Query('deleted') isDeleted: number, // 0: false, 1: true, 2: both
-  ) {
-    if (
-      typeof isDeleted == 'string' &&
-      !isNaN(isDeleted) &&
-      parseInt(isDeleted) >= 1
-    ) {
+  async getSpecificProblem(@Req() req: Request, @Param('slug') slug: string) {
+    const problem = await this.problemsService.findProblem(slug);
+    if (!problem) throw new NotFoundException('PROBLEM_NOT_FOUND');
+    if (problem.isDeleted || problem.status == 'HIDDEN') {
       if (
-        typeof req['user']?.perms != 'bigint' ||
+        !req['user'] ||
         !this.permissionsService.hasPerms(
-          req['user'].perms,
-          UserPermissions.VIEW_DELETED_PROBLEMS,
+          req['user']?.perms ?? 0,
+          UserPermissions.VIEW_ALL_PROBLEMS,
         )
       )
         throw new ForbiddenException();
     }
-    const problem = await this.problemsService.findProblem(slug);
-    if (!problem) throw new NotFoundException('PROBLEM_NOT_FOUND');
     return {
       code: problem.slug,
       name: problem.name,
@@ -115,6 +107,8 @@ export class ProblemsController {
         submissions: problem.total_subs,
         ACSubmissions: problem.AC_subs,
       },
+
+      isDeleted: problem.isDeleted,
     };
   }
 
