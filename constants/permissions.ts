@@ -26,35 +26,36 @@ export const UserPermissions = {
   CHANGE_USER_STATUS: 1n << 7n,
   MANAGE_USER_BANS: 1n << 8n,
   RESET_USER_PASSWORD: 1n << 9n,
-  EDIT_USERS_INFO: 1n << 10n,
-  EDIT_USERS_PERMISSIONS: 1n << 11n,
-  DELETE_USERS: 1n << 12n,
+  FORCE_CREATE_USERS: 1n << 10n,
+  EDIT_USERS_INFO: 1n << 11n,
+  EDIT_USERS_PERMISSIONS: 1n << 12n,
+  DELETE_USERS: 1n << 13n,
 
   // Sessions
-  INVALIDATE_USER_SESSIONS: 1n << 15n,
-  VIEW_USER_SESSIONS: 1n << 16n,
-  BAN_IP_CIDR: 1n << 17n,
+  INVALIDATE_USER_SESSIONS: 1n << 14n,
+  VIEW_USER_SESSIONS: 1n << 15n,
+  BAN_IP_CIDR: 1n << 16n,
 
   // Submission
-  VIEW_SUBMISSION_CODE: 1n << 18n,
-  VIEW_SUBMISSION_DETAILS: 1n << 19n,
-  REJUDGE_SUBMISSION: 1n << 20n,
-  EDIT_SUBMISSION: 1n << 21n,
-  SKIP_SUBMISSION: 1n << 22n,
-  UNLIMITED_SUBMISSIONS: 1n << 23n,
-  CHANGE_SUBMISSION_STATUS: 1n << 24n, // active, aborted, locked
+  VIEW_SUBMISSION_CODE: 1n << 17n,
+  VIEW_SUBMISSION_DETAILS: 1n << 18n,
+  REJUDGE_SUBMISSION: 1n << 19n,
+  EDIT_SUBMISSION: 1n << 20n,
+  SKIP_SUBMISSION: 1n << 21n,
+  UNLIMITED_SUBMISSIONS: 1n << 22n,
+  CHANGE_SUBMISSION_STATUS: 1n << 23n, // active, aborted, locked
 
   // Problems
-  VIEW_ALL_PROBLEMS: 1n << 25n,
-  CREATE_NEW_PROBLEM: 1n << 26n,
-  MODIFY_ALL_PROBLEMS: 1n << 27n,
-  MODIFY_PERMITTED_PROBLEMS: 1n << 28n,
-  CHANGE_PROBLEM_STATUS: 1n << 29n, // locked, hidden, active
-  DELETE_PROBLEM: 1n << 30n,
-  UPDATE_SOLUTIONS: 1n << 31n,
-  CLONE_PROBLEM: 1n << 32n,
-  EDIT_CLARIFICATIONS: 1n << 33n,
-  EDIT_PROBLEM_TESTS: 1n << 34n,
+  VIEW_ALL_PROBLEMS: 1n << 24n,
+  CREATE_NEW_PROBLEM: 1n << 25n,
+  MODIFY_ALL_PROBLEMS: 1n << 26n,
+  MODIFY_PERMITTED_PROBLEMS: 1n << 27n,
+  CHANGE_PROBLEM_STATUS: 1n << 28n, // locked, hidden, active
+  DELETE_PROBLEM: 1n << 29n,
+  UPDATE_SOLUTIONS: 1n << 30n,
+  CLONE_PROBLEM: 1n << 31n,
+  EDIT_CLARIFICATIONS: 1n << 32n,
+  EDIT_PROBLEM_TESTS: 1n << 33n,
 } as const;
 
 export type PermissionName = keyof typeof UserPermissions;
