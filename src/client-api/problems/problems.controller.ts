@@ -21,7 +21,6 @@ import { Request } from 'express';
 import { CreateProblemDTO } from './problems.dto';
 import { PrismaService } from '@/prisma/prisma.service';
 import { Category, Problem, Type } from '@prisma/client';
-import { ProblemStatus } from './problems.typings';
 
 @Controller()
 export class ProblemsController {
@@ -72,16 +71,29 @@ export class ProblemsController {
   @Get('/all/status')
   @UseGuards(AuthGuard)
   async getAllProblemsStatus(@Req() req: Request) {
-    const result: ProblemStatus[] = await this.prismaService.$queryRaw`
-      SELECT 
-        p.slug,
-        p."isLocked",
-        p."isPublic",
-        bool_or(s.verdict = 'AC') AS solved,
-        count(s.*) > 0 AS attempted
-      FROM "Problem" p
-      LEFT JOIN "Submission" s ON s."problemSlug" = p.slug AND s."authorId" = ${req['user'].id}
-      GROUP BY p.slug;`;
+    let hasViewAllProbs = false;
+    if (
+      req['user'].perms &&
+      this.permissionsService.hasPerms(
+        req['user'].perms,
+        UserPermissions.VIEW_ALL_PROBLEMS,
+      )
+    )
+      hasViewAllProbs = true;
+    const showHidden = hasViewAllProbs ? true : false;
+
+    const result = await this.prismaService.$queryRaw`
+        SELECT
+          p.slug,
+          p."isLocked",
+          p."isPublic",
+          bool_or(s.verdict = 'AC') AS solved,
+          count(s.*) > 0 AS attempted
+        FROM "Problem" p
+        LEFT JOIN "Submission" s ON s."problemSlug" = p.slug AND s."authorId" = ${req['user'].id}
+        WHERE (${showHidden} OR (p."isPublic" = true AND p."isDeleted" = false))
+        GROUP BY p.slug, p."isLocked", p."isPublic";
+      `;
     return result;
   }
 
