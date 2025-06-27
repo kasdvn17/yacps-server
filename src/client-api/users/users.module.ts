@@ -2,10 +2,10 @@ import { Module } from '@nestjs/common';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 import { Argon2Service } from '../argon2/argon2.service';
-import { HCaptchaModule } from '../hcaptcha/hcaptcha.module';
+import { TurnstileModule } from '../turnstile/turnstile.module';
 
 @Module({
-  imports: [HCaptchaModule],
+  imports: [TurnstileModule],
   controllers: [UsersController],
   providers: [UsersService, Argon2Service],
   exports: [UsersService],

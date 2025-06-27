@@ -17,7 +17,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { Argon2Service } from '../argon2/argon2.service';
 import { Perms, Public } from '../auth/auth.decorator';
 import { AuthGuard } from '../auth/auth.guard';
-import { HCaptchaService } from '../hcaptcha/hcaptcha.service';
+import { TurnstileService } from '../turnstile/turnstile.service';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { getRealIp } from '../utils';
 import { Config } from 'config';
@@ -32,7 +32,7 @@ export class UsersController {
     private prismaService: PrismaService,
     private usersService: UsersService,
     private argon2Service: Argon2Service,
-    private hCaptchaService: HCaptchaService,
+    private turnstileService: TurnstileService,
   ) {}
 
   @Post('/')
@@ -49,11 +49,11 @@ export class UsersController {
     if (!Config.ENABLE_USER_SELF_REGISTRATIONS)
       throw new ForbiddenException('SELF_REGISTRATION_DISABLED');
     if (Config.ENABLE_CAPTCHA) {
-      //Require hCaptcha token
+      //Require Turnstile token
       if (!body.captchaToken) {
         throw new BadRequestException('INVALID_CAPTCHA');
       }
-      const captchaValid = await this.hCaptchaService.verifyCaptcha(
+      const captchaValid = await this.turnstileService.verify(
         body.captchaToken,
         body.clientIp,
       );
