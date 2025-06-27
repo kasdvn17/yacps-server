@@ -50,6 +50,7 @@ export class ProblemsController {
     if (hasViewAllProbs)
       problems = await this.problemsService.findAllSystemProblems();
     else problems = await this.problemsService.findAllPublicProblems();
+
     return problems.map((v) => ({
       code: v.slug,
       name: v.name,
@@ -58,7 +59,6 @@ export class ProblemsController {
       type: v.types.map((x) => x.name),
       points: v.points,
       solution: !!v.solution,
-      status: v.status, // ACTIVE, HIDDEN, LOCKED
       stats: {
         submissions: v.total_subs,
         ACSubmissions: v.AC_subs,
@@ -66,6 +66,20 @@ export class ProblemsController {
 
       isDeleted: v.isDeleted,
     }));
+  }
+
+  @Get('/all/status')
+  @UseGuards(AuthGuard)
+  async getAllProblemsStatus(@Req() req: Request) {
+    const result = await this.prismaService.$queryRaw`
+      SELECT 
+        "problemSlug",
+        bool_or(verdict = 'AC') AS solved,
+        count(*) > 0 AS attempted
+      FROM "Submission"
+      WHERE "authorId" = ${req['user'].id}
+      GROUP BY "problemSlug";`;
+    return result;
   }
 
   @Get('/:slug')

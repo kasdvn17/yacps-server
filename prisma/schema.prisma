@@ -124,7 +124,7 @@ model Submission {
   code     String
   language String
 
-  status SubmissionStatus @default(ACTIVE)
+  verdict SubmissionVerdict @default(QU)
 
   isLocked Boolean @default(false)
 
@@ -132,10 +132,19 @@ model Submission {
   updatedAt DateTime @updatedAt
 }
 
-enum SubmissionStatus {
-  ACTIVE
-  ABORTED
-  LOCKED
+enum SubmissionVerdict {
+  RN // Running
+  AC // Accepted
+  WA // Wrong Answer
+  AB // Aborted
+  QU // In Queue
+  IR // Invalid Return
+  CE // Compile Error
+  RTE // Runtime Error
+  OLE // Output limit exceeded
+  TLE // Time limit exceeded
+  MLE // Memory limit exceeded
+  ISE // Internal Server Error
 }
 
 // explicit m-n relation
