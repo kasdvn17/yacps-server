@@ -41,7 +41,6 @@ async function create() {
     process.exit(1);
   }
   const parseFloatPoints = parseFloat(points);
-  console.log(parseFloatPoints);
   const problem = await prisma.problem.create({
     data: {
       slug,
@@ -63,7 +62,7 @@ async function create() {
 function main() {
   const args = process.argv.slice(2);
   if (args.includes('--help') || args.includes('-h') || args.length == 0) {
-    console.log(`This is an emergency script to modify problems only. If you want to modify further, please edit directly in the database or the admin page.\n
+    console.log(`This is an emergency/development script to modify problems only. If you want to modify further, please edit directly in the database or the admin page.\n
 Help options:
     --help, -h        Show this help message
     --create          Create a problem
