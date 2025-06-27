@@ -189,8 +189,6 @@ model Problem {
   categoryId Int      @default(0)
   category   Category @relation(fields: [categoryId], references: [id])
 
-  status ProblemStatus @default(ACTIVE)
-
   types            Type[]
   contests         Contest[]
   submissions      Submission[]
@@ -202,15 +200,11 @@ model Problem {
   AC_subs    Int @default(0)
 
   isDeleted Boolean @default(false)
+  isPublic  Boolean @default(true)
+  isLocked  Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-}
-
-enum ProblemStatus {
-  ACTIVE
-  HIDDEN // only authors, curators, testers and ppl with VIEW_ALL_PROBLEMS can see this
-  LOCKED // everyone can see this but can't modify anything (even upload new submissions)
 }
 
 model ProblemTestEnvironment {
