@@ -1,3 +1,5 @@
+#!/usr/bin/env bun
+
 import { PrismaClient } from '@prisma/client';
 import readline from 'readline';
 
