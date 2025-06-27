@@ -21,6 +21,7 @@ import { Request } from 'express';
 import { CreateProblemDTO } from './problems.dto';
 import { PrismaService } from '@/prisma/prisma.service';
 import { Category, Problem, Type } from '@prisma/client';
+import { ProblemStatus } from './problems.typings';
 
 @Controller()
 export class ProblemsController {
@@ -71,14 +72,16 @@ export class ProblemsController {
   @Get('/all/status')
   @UseGuards(AuthGuard)
   async getAllProblemsStatus(@Req() req: Request) {
-    const result = await this.prismaService.$queryRaw`
+    const result: ProblemStatus[] = await this.prismaService.$queryRaw`
       SELECT 
-        "problemSlug",
-        bool_or(verdict = 'AC') AS solved,
-        count(*) > 0 AS attempted
-      FROM "Submission"
-      WHERE "authorId" = ${req['user'].id}
-      GROUP BY "problemSlug";`;
+        p.slug,
+        p."isLocked",
+        p."isPublic",
+        bool_or(s.verdict = 'AC') AS solved,
+        count(s.*) > 0 AS attempted
+      FROM "Problem" p
+      LEFT JOIN "Submission" s ON s."problemSlug" = p.slug AND s."authorId" = ${req['user'].id}
+      GROUP BY p.slug;`;
     return result;
   }
 
@@ -88,7 +91,8 @@ export class ProblemsController {
   async getSpecificProblem(@Req() req: Request, @Param('slug') slug: string) {
     const problem = await this.problemsService.findProblem(slug, undefined);
     if (!problem) throw new NotFoundException('PROBLEM_NOT_FOUND');
-    if (problem.isDeleted || problem.status == 'HIDDEN') {
+    if (problem.isDeleted || problem.isPublic == false) {
+      // in the future: organizations :v
       if (
         !req['user'] ||
         !req['user'].perms ||

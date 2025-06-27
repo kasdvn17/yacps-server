@@ -8,7 +8,7 @@ export class ProblemsService {
   async findAllPublicProblems() {
     return await this.prismaService.problem.findMany({
       where: {
-        NOT: [{ status: 'HIDDEN' }],
+        isPublic: true,
         isDeleted: false,
       },
       include: {
