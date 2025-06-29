@@ -88,6 +88,35 @@ export class SessionsService {
     }
   }
 
+  async findSessionByIdWithUser(id: string) {
+    try {
+      return await this.prismaService.session.findUnique({
+        where: {
+          id,
+        },
+        include: {
+          user: true,
+        },
+      });
+    } catch (err) {
+      this.logger.error(err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+    }
+  }
+
+  async findSessionById(id: string): Promise<Session | null> {
+    try {
+      return await this.prismaService.session.findUnique({
+        where: {
+          id,
+        },
+      });
+    } catch (err) {
+      this.logger.error(err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+    }
+  }
+
   async findSession(fields: Partial<Session>): Promise<Session | null> {
     try {
       return await this.prismaService.session.findFirst({

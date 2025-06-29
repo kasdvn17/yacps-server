@@ -24,9 +24,8 @@ model User {
   isDeleted Boolean    @default(false)
   status    UserStatus @default(CONF_AWAITING)
 
-  roles         UserOnRole[]
+  roles         Role[]
   sessions      Session[]
-  rating        Rating?
   submissions   Submission[]
   participation Contestant[]
 
@@ -35,58 +34,40 @@ model User {
 }
 
 model Role {
-  id String @id @default(uuid())
+  id Int @id @default(autoincrement())
 
   name  String @unique
   color String
   perms BigInt @default(0)
 
-  users UserOnRole[]
+  users User[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 // explicit m-n relation to store metadata
-model UserOnRole {
-  user   User   @relation(fields: [userId], references: [id])
-  userId String
-  role   Role   @relation(fields: [roleId], references: [id])
-  roleId String
+// model UserOnRole {
+//   user   User   @relation(fields: [userId], references: [id])
+//   userId String
+//   role   Role   @relation(fields: [roleId], references: [id])
+//   roleId Int
 
-  assignedAt DateTime @default(now())
-  assignedBy String?
-
-  @@id([userId, roleId])
-}
+//   @@id([userId, roleId])
+// }
 
 model Session {
   id String @id @default(uuid())
 
   user   User   @relation(fields: [userId], references: [id])
   userId String
-  ip     String
+
+  ip        String?
+  userAgent String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   expiresAt DateTime
-
-  userAgent String?
-}
-
-model Rating {
-  userId String @id
-  user   User   @relation(fields: [userId], references: [id])
-
-  countContests      Int    @default(0)
-  totalContestPoints BigInt @default(0)
-
-  points      Int   @default(0)
-  mean        Float @default(0)
-  performance Float @default(0)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }
 
 model Contestant {
@@ -100,8 +81,9 @@ model Contestant {
 
 model Contest {
   id   Int    @id @default(autoincrement())
+  slug String @unique
+
   name String
-  slug String
 
   minRating Int @default(0)
   maxRating Int @default(0)
@@ -116,10 +98,10 @@ model Contest {
 model Submission {
   id Int @id @default(autoincrement())
 
-  author      User    @relation(fields: [authorId], references: [id])
-  authorId    String
-  problem     Problem @relation(fields: [problemSlug], references: [slug])
-  problemSlug String
+  author    User    @relation(fields: [authorId], references: [id])
+  authorId  String
+  problem   Problem @relation(fields: [problemId], references: [id])
+  problemId Int
 
   code     String
   language String
@@ -130,6 +112,10 @@ model Submission {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([authorId])
+  @@index([problemId])
+  @@index([authorId, problemId])
 }
 
 enum SubmissionVerdict {
@@ -172,7 +158,8 @@ model Type {
 // explicit m-n relation: CategoryOnProblem
 
 model Problem {
-  slug String @id
+  id   Int    @id @default(autoincrement())
+  slug String @unique
 
   name        String
   description String?
@@ -192,12 +179,8 @@ model Problem {
   types            Type[]
   contests         Contest[]
   submissions      Submission[]
-  subStats         ProblemSubmissionsStats?
   testEnvironments ProblemTestEnvironment?
   solution         String?
-
-  total_subs Int @default(0)
-  AC_subs    Int @default(0)
 
   isDeleted Boolean @default(false)
   isPublic  Boolean @default(true)
@@ -208,8 +191,8 @@ model Problem {
 }
 
 model ProblemTestEnvironment {
-  problemSlug String  @id
-  problem     Problem @relation(fields: [problemSlug], references: [slug])
+  problemId Int     @id
+  problem   Problem @relation(fields: [problemId], references: [id])
 
   allowedLangs String[] @default([])
   timeLimit    Int      @default(1) // seconds
@@ -220,33 +203,14 @@ model ProblemTestEnvironment {
 
 // Specific configuration for a coding language
 model ProblemLanguageTestEnvironment {
-  problemSlug String                 @unique
-  PTE         ProblemTestEnvironment @relation(fields: [problemSlug], references: [problemSlug])
-  lang        String                 @unique
+  problemId Int                    @unique
+  PTE       ProblemTestEnvironment @relation(fields: [problemId], references: [problemId])
+  lang      String                 @unique
 
   timeLimit   Int @default(1) // seconds
   memoryLimit Int @default(256) // in MB
 
-  @@id([problemSlug, lang])
-}
-
-model ProblemSubmissionsStats {
-  problemSlug String  @id
-  problem     Problem @relation(fields: [problemSlug], references: [slug])
-
-  WA  Int @default(0)
-  RTE Int @default(0)
-  OLE Int @default(0)
-  IR  Int @default(0)
-  TLE Int @default(0)
-  MLE Int @default(0)
-  RE  Int @default(0)
-}
-
-enum Gender {
-  MALE
-  FEMALE
-  RATHER_NOT_SAY
+  @@id([problemId, lang])
 }
 
 enum UserStatus {
@@ -278,7 +242,6 @@ model Judge {
   updatedAt  DateTime @updatedAt
 }
 
-// generate jwt with payload: { id: JudgeToken.createdAt + JudgeToken.id }
 model JudgeToken {
   id      String @id @default(cuid()) // ensure that when judge tokens are (re)generated, they are jwt-ed from different ids
   judge   Judge  @relation(fields: [judgeId], references: [id])
