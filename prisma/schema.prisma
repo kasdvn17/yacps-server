@@ -124,11 +124,27 @@ model Submission {
   code     String
   language String
 
-  isDeleted Boolean @default(false)
-  isLocked  Boolean @default(false)
+  verdict SubmissionVerdict @default(QU)
+
+  isLocked Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+enum SubmissionVerdict {
+  RN // Running
+  AC // Accepted
+  WA // Wrong Answer
+  AB // Aborted
+  QU // In Queue
+  IR // Invalid Return
+  CE // Compile Error
+  RTE // Runtime Error
+  OLE // Output limit exceeded
+  TLE // Time limit exceeded
+  MLE // Memory limit exceeded
+  ISE // Internal Server Error
 }
 
 // explicit m-n relation
@@ -160,9 +176,7 @@ model Problem {
 
   name        String
   description String?
-  categories  Category[]
-  types       Type[]
-  points      Int
+  points      Float
 
   input  String @default("stdin")
   output String @default("stdout")
@@ -170,8 +184,12 @@ model Problem {
   curators String[] @default([])
   authors  String[] @default([])
 
-  pdfUuid String? @unique
+  pdfUuid String?
 
+  categoryId Int      @default(0)
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  types            Type[]
   contests         Contest[]
   submissions      Submission[]
   subStats         ProblemSubmissionsStats?
@@ -182,6 +200,8 @@ model Problem {
   AC_subs    Int @default(0)
 
   isDeleted Boolean @default(false)
+  isPublic  Boolean @default(true)
+  isLocked  Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

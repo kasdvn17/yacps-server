@@ -5,29 +5,48 @@ import { Injectable } from '@nestjs/common';
 export class ProblemsService {
   constructor(private prismaService: PrismaService) {}
 
-  async findAllProblems(isDeleted: boolean = false) {
+  async findAllPublicProblems() {
     return await this.prismaService.problem.findMany({
       where: {
-        isDeleted,
+        isPublic: true,
+        isDeleted: false,
       },
       include: {
-        categories: true,
+        category: true,
         types: true,
       },
     });
   }
 
-  async findProblem(slug: string, isDeleted: boolean = false) {
+  async findAllSystemProblems() {
+    return await this.prismaService.problem.findMany({
+      include: {
+        category: true,
+        types: true,
+      },
+    });
+  }
+
+  async findProblem(slug: string, isDeleted: boolean | undefined) {
     return await this.prismaService.problem.findFirst({
       where: {
         slug,
         isDeleted,
       },
       include: {
-        categories: true,
+        category: true,
         types: true,
         testEnvironments: true,
       },
     });
+  }
+
+  async exists(slug: string) {
+    const prob = await this.prismaService.problem.findFirst({
+      where: {
+        slug,
+      },
+    });
+    return !!prob;
   }
 }

@@ -17,11 +17,10 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { Argon2Service } from '../argon2/argon2.service';
 import { Perms, Public } from '../auth/auth.decorator';
 import { AuthGuard } from '../auth/auth.guard';
-import { HCaptchaService } from '../hcaptcha/hcaptcha.service';
+import { TurnstileService } from '../turnstile/turnstile.service';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { getRealIp } from '../utils';
 import { Config } from 'config';
-import { PermissionsService } from '../auth/permissions.service';
 import { UserPermissions } from 'constants/permissions';
 
 @Controller()
@@ -33,8 +32,7 @@ export class UsersController {
     private prismaService: PrismaService,
     private usersService: UsersService,
     private argon2Service: Argon2Service,
-    private hcaptchaService: HCaptchaService,
-    private permissionsService: PermissionsService,
+    private turnstileService: TurnstileService,
   ) {}
 
   @Post('/')
@@ -51,11 +49,11 @@ export class UsersController {
     if (!Config.ENABLE_USER_SELF_REGISTRATIONS)
       throw new ForbiddenException('SELF_REGISTRATION_DISABLED');
     if (Config.ENABLE_CAPTCHA) {
-      //Require hCaptcha token
+      //Require Turnstile token
       if (!body.captchaToken) {
         throw new BadRequestException('INVALID_CAPTCHA');
       }
-      const captchaValid = await this.hcaptchaService.verifyCaptcha(
+      const captchaValid = await this.turnstileService.verify(
         body.captchaToken,
         body.clientIp,
       );
@@ -69,13 +67,18 @@ export class UsersController {
         username: body.username,
       },
       undefined,
+      undefined,
     );
     if (usedUsername != null && usedUsername.id)
       throw new ConflictException('USERNAME_UNAVAILABLE');
 
-    const usedEmail = await this.usersService.findUser({
-      email: body.email,
-    });
+    const usedEmail = await this.usersService.findUser(
+      {
+        email: body.email,
+      },
+      false,
+      undefined,
+    );
     if (usedEmail != null && usedEmail.id)
       throw new ConflictException('EMAIL_IN_USE');
 
@@ -101,20 +104,25 @@ export class UsersController {
 
   @Post('/force')
   @UseGuards(AuthGuard)
-  @Perms([UserPermissions.CREATE_NEW_USERS])
+  @Perms([UserPermissions.FORCE_CREATE_USERS])
   async forceCreateUser(@Body() body: CreateUserDTO) {
     const usedUsername = await this.usersService.findUser(
       {
         username: body.username,
       },
       undefined,
+      undefined,
     );
     if (usedUsername != null && usedUsername.id)
       throw new ConflictException('USERNAME_UNAVAILABLE');
 
-    const usedEmail = await this.usersService.findUser({
-      email: body.email,
-    });
+    const usedEmail = await this.usersService.findUser(
+      {
+        email: body.email,
+      },
+      true,
+      undefined,
+    );
     if (usedEmail != null && usedEmail.id)
       throw new ConflictException('EMAIL_IN_USE');
 
