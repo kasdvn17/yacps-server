@@ -85,12 +85,10 @@ export class ProblemsService {
       const result: { id: number; total_subs: number; ac_subs: number }[] =
         await this.prismaService.$queryRaw`
       SELECT
-          id,
           COUNT(*)::int AS total_subs,
           SUM(CASE WHEN verdict = 'AC' THEN 1 ELSE 0 END)::int AS ac_subs
       FROM "Submission"
-      WHERE "problemId" = ${id}
-      GROUP BY id;
+      WHERE "problemId" = ${id};
     `;
       return {
         submissions: result[0]?.total_subs || 0,
