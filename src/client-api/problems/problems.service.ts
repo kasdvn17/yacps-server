@@ -50,7 +50,7 @@ export class ProblemsService {
         testEnvironments: true,
       },
     });
-    if (!isDeleted && problem?.isDeleted) return null;
+    if (isDeleted == false && problem?.isDeleted) return null;
     return problem;
   }
 
@@ -98,5 +98,23 @@ export class ProblemsService {
       this.logger.error(err);
       throw new InternalServerErrorException('UNKNOWN_ERROR', err);
     }
+  }
+
+  async getProblemsStatusList(
+    view_all_probs: boolean = false,
+    authorId: string,
+  ) {
+    return await this.prismaService.$queryRaw`
+    SELECT
+      p.slug,
+      p."isLocked",
+      p."isPublic",
+      bool_or(s.verdict = 'AC') AS solved,
+      count(s.*) > 0 AS attempted
+    FROM "Problem" p
+    LEFT JOIN "Submission" s ON s."problemId" = p.id AND s."authorId" = ${authorId}
+    WHERE (${view_all_probs} OR (p."isPublic" = true AND p."isDeleted" = false))
+    GROUP BY p.slug, p."isLocked", p."isPublic";
+  `;
   }
 }
