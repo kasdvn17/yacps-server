@@ -1,9 +1,15 @@
 import { PrismaService } from '@/prisma/prisma.service';
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 
 @Injectable()
 export class ProblemsService {
   constructor(private prismaService: PrismaService) {}
+  private logger = new Logger(ProblemsService.name);
 
   async findAllPublicProblems() {
     return await this.prismaService.problem.findMany({
@@ -15,6 +21,9 @@ export class ProblemsService {
         category: true,
         types: true,
       },
+      orderBy: {
+        id: 'desc',
+      },
     });
   }
 
@@ -24,14 +33,16 @@ export class ProblemsService {
         category: true,
         types: true,
       },
+      orderBy: {
+        id: 'desc',
+      },
     });
   }
 
   async findProblem(slug: string, isDeleted: boolean | undefined) {
-    return await this.prismaService.problem.findFirst({
+    const problem = await this.prismaService.problem.findUnique({
       where: {
         slug,
-        isDeleted,
       },
       include: {
         category: true,
@@ -39,14 +50,55 @@ export class ProblemsService {
         testEnvironments: true,
       },
     });
+    if (!isDeleted && problem?.isDeleted) return null;
+    return problem;
+  }
+
+  async findProblemWithId(id: number, isDeleted: boolean | undefined) {
+    if (!Number.isInteger(id)) throw new BadRequestException('ID_NOT_INTEGER');
+    const problem = await this.prismaService.problem.findUnique({
+      where: {
+        id,
+      },
+      include: {
+        category: true,
+        types: true,
+        testEnvironments: true,
+      },
+    });
+    if (!isDeleted && problem?.isDeleted) return null;
+    return problem;
   }
 
   async exists(slug: string) {
-    const prob = await this.prismaService.problem.findFirst({
+    const prob = await this.prismaService.problem.findUnique({
       where: {
         slug,
       },
     });
     return !!prob;
+  }
+
+  async getBasicSubStats(id: number) {
+    if (!Number.isInteger(id)) throw new BadRequestException('ID_NOT_INTEGER');
+    try {
+      const result: { id: number; total_subs: number; ac_subs: number }[] =
+        await this.prismaService.$queryRaw`
+      SELECT
+          id,
+          COUNT(*)::int AS total_subs,
+          SUM(CASE WHEN verdict = 'AC' THEN 1 ELSE 0 END)::int AS ac_subs
+      FROM "Submission"
+      WHERE "problemId" = ${id}
+      GROUP BY id;
+    `;
+      return {
+        submissions: result[0]?.total_subs || 0,
+        ACSubmissions: result[0]?.ac_subs || 0,
+      };
+    } catch (err) {
+      this.logger.error(err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+    }
   }
 }

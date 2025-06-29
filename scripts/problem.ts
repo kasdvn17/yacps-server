@@ -47,9 +47,6 @@ async function create() {
       name,
       description,
       points: parseFloatPoints,
-      subStats: {
-        create: {},
-      },
       testEnvironments: {
         create: {},
       },

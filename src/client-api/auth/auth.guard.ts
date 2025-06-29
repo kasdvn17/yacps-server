@@ -31,9 +31,9 @@ export class AuthGuard implements CanActivate {
     if (token) {
       try {
         const payload = await this.jwtService.verifyAsync(token);
-        const session = await this.sessionsService.findSessionWithUser({
-          id: payload.id,
-        });
+        const session = await this.sessionsService.findSessionByIdWithUser(
+          payload.id,
+        );
         if (!session) throw new UnauthorizedException('INVALID_TOKEN');
         if (!session.user || session.expiresAt.getTime() <= Date.now()) {
           await this.sessionsService.deleteSession(session.id);

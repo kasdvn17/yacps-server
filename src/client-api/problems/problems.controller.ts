@@ -51,21 +51,24 @@ export class ProblemsController {
       problems = await this.problemsService.findAllSystemProblems();
     else problems = await this.problemsService.findAllPublicProblems();
 
-    return problems.map((v) => ({
-      code: v.slug,
-      name: v.name,
+    return await Promise.all(
+      problems.map(async (v) => {
+        const stats = await this.problemsService.getBasicSubStats(v.id);
+        return {
+          code: v.slug,
+          name: v.name,
 
-      category: v.category.name,
-      type: v.types.map((x) => x.name),
-      points: v.points,
-      solution: !!v.solution,
-      stats: {
-        submissions: v.total_subs,
-        ACSubmissions: v.AC_subs,
-      },
+          category: v.category.name,
+          type: v.types.map((x) => x.name),
+          points: v.points,
+          solution: !!v.solution,
 
-      isDeleted: v.isDeleted,
-    }));
+          stats,
+
+          isDeleted: v.isDeleted,
+        };
+      }),
+    );
   }
 
   @Get('/all/status')
@@ -134,10 +137,6 @@ export class ProblemsController {
       author: problem.authors,
       curator: problem.curators,
       pdf: problem.pdfUuid,
-      stats: {
-        submissions: problem.total_subs,
-        ACSubmissions: problem.AC_subs,
-      },
 
       isDeleted: problem.isDeleted,
     };
@@ -169,14 +168,13 @@ export class ProblemsController {
             })),
           },
           solution: data.solution,
-          subStats: { create: {} },
           testEnvironments: { create: {} },
         },
       });
       return problem;
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR');
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
     }
   }
 }
