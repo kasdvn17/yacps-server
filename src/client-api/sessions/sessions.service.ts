@@ -14,7 +14,7 @@ export class SessionsService {
   private readonly logger = new Logger(SessionsService.name);
   constructor(
     private prismaService: PrismaService,
-    private userService: UsersService,
+    private usersService: UsersService,
   ) {}
 
   async createSession(
@@ -24,11 +24,15 @@ export class SessionsService {
     userAgent?: string,
   ): Promise<Session> {
     if (!skipCheckUser) {
-      const user = await this.userService.findUser({
-        id: userId,
-        isDeleted: false,
-        status: 'ACTIVE',
-      });
+      const user = await this.usersService.findUser(
+        {
+          id: userId,
+          isDeleted: false,
+          status: 'ACTIVE',
+        },
+        false,
+        true,
+      );
       if (!user) throw new NotFoundException('USER_NOT_FOUND');
     }
     let session: Session | null;

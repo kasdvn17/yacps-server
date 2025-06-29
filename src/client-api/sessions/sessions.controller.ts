@@ -24,7 +24,7 @@ import { Perms, Public } from '../auth/auth.decorator';
 import { UserPermissions } from 'constants/permissions';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { getRealIp } from '../utils';
-import { HCaptchaService } from '../hcaptcha/hcaptcha.service';
+import { TurnstileService } from '../turnstile/turnstile.service';
 import { Config } from 'config';
 import { RealIP } from 'nestjs-real-ip';
 
@@ -38,7 +38,7 @@ export class SessionsController {
     private usersService: UsersService,
     private argon2Service: Argon2Service,
     private jwtService: JwtService,
-    private hCaptchaService: HCaptchaService,
+    private turnstileService: TurnstileService,
   ) {}
 
   @Post('/')
@@ -57,11 +57,11 @@ export class SessionsController {
     @RealIP() no_captcha_ip: string,
   ) {
     if (Config.ENABLE_CAPTCHA) {
-      //Require hCaptcha token
+      //Require Turnstile token
       if (!body.captchaToken) {
         throw new BadRequestException('INVALID_CAPTCHA');
       }
-      const captchaValid = await this.hCaptchaService.verifyCaptcha(
+      const captchaValid = await this.turnstileService.verify(
         body.captchaToken,
         body.clientIp,
       );

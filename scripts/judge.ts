@@ -1,3 +1,5 @@
+#!/usr/bin/env bun
+
 import { JwtService } from '@nestjs/jwt';
 import { PrismaClient } from '@prisma/client';
 import readline from 'readline';
@@ -60,7 +62,7 @@ async function create() {
 function main() {
   const args = process.argv.slice(2);
   if (args.includes('--help') || args.includes('-h') || args.length == 0) {
-    console.log(`Help options:
+    console.log(`This is an emergency/development script to modify problems only. If you want to modify further, please edit directly in the database or the admin page.\nHelp options:
     --help, -h        Show this help message
     --create          Create a custom judge, including judge token
     `);
