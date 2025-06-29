@@ -28,6 +28,8 @@ model User {
   sessions      Session[]
   submissions   Submission[]
   participation Contestant[]
+  authors       Problem[]    @relation("AuthorToProblem")
+  curators      Problem[]    @relation("CuratorToProblem")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -133,16 +135,6 @@ enum SubmissionVerdict {
   ISE // Internal Server Error
 }
 
-// explicit m-n relation
-// model ProblemOnContest {
-//   contest     Contest @relation(fields: [contestId], references: [id])
-//   contestId   Int
-//   problem     Problem @relation(fields: [problemSlug], references: [slug])
-//   problemSlug String
-
-//   @@id([contestId, problemSlug])
-// }
-
 model Category {
   id       Int       @id @default(autoincrement())
   name     String    @unique
@@ -168,8 +160,9 @@ model Problem {
   input  String @default("stdin")
   output String @default("stdout")
 
-  curators String[] @default([])
-  authors  String[] @default([])
+  problemSource String?
+  authors       User[]  @relation("AuthorToProblem")
+  curators      User[]  @relation("CuratorToProblem")
 
   pdfUuid String?
 

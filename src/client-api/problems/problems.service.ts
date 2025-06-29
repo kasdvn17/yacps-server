@@ -45,9 +45,27 @@ export class ProblemsService {
         slug,
       },
       include: {
-        category: true,
-        types: true,
+        category: {
+          select: {
+            name: true,
+          },
+        },
+        types: {
+          select: {
+            name: true,
+          },
+        },
         testEnvironments: true,
+        curators: {
+          select: {
+            username: true,
+          },
+        },
+        authors: {
+          select: {
+            username: true,
+          },
+        },
       },
     });
     if (isDeleted == false && problem?.isDeleted) return null;
