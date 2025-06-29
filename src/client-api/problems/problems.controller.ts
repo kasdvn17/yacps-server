@@ -111,6 +111,7 @@ export class ProblemsController {
       code: problem.slug,
       name: problem.name,
       description: problem.description,
+      pdf: problem.pdfUuid,
 
       timeLimit: problem.testEnvironments?.timeLimit || '',
       memoryLimit: problem.testEnvironments?.memoryLimit || '',
@@ -121,11 +122,13 @@ export class ProblemsController {
 
       category: problem.category.name,
       type: problem.types.map((x) => x.name),
+
       points: problem.points,
       solution: problem.solution,
-      author: problem.authors,
-      curator: problem.curators,
-      pdf: problem.pdfUuid,
+
+      problemSource: problem.problemSource,
+      author: problem.authors.map((v) => v.username),
+      curator: problem.curators.map((v) => v.username),
 
       isDeleted: problem.isDeleted,
     };
@@ -147,8 +150,16 @@ export class ProblemsController {
           points: data.points,
           input: data.input,
           output: data.output,
-          curators: data.curators,
-          authors: data.authors,
+          curators: {
+            connect: data.curators?.map((v) => ({
+              id: v,
+            })),
+          },
+          authors: {
+            connect: data.authors?.map((v) => ({
+              id: v,
+            })),
+          },
           pdfUuid: data.pdfUuid,
           categoryId: data.categoryId,
           types: {
