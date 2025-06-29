@@ -93,7 +93,7 @@ export class ProblemsController {
           bool_or(s.verdict = 'AC') AS solved,
           count(s.*) > 0 AS attempted
         FROM "Problem" p
-        LEFT JOIN "Submission" s ON s."problemSlug" = p.slug AND s."authorId" = ${req['user'].id}
+        LEFT JOIN "Submission" s ON s."problemId" = p.id AND s."authorId" = ${req['user'].id}
         WHERE (${showHidden} OR (p."isPublic" = true AND p."isDeleted" = false))
         GROUP BY p.slug, p."isLocked", p."isPublic";
       `;
