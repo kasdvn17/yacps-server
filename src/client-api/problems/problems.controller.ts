@@ -89,7 +89,7 @@ export class ProblemsController {
     );
   }
 
-  @Get('/:slug')
+  @Get('/details/:slug')
   @Public()
   @UseGuards(AuthGuard)
   async getSpecificProblem(@Req() req: Request, @Param('slug') slug: string) {
@@ -134,7 +134,7 @@ export class ProblemsController {
     };
   }
 
-  @Post('/')
+  @Post('/new')
   @UseGuards(AuthGuard)
   @Perms([UserPermissions.CREATE_NEW_PROBLEM])
   async createProblem(@Body() data: CreateProblemDTO) {
