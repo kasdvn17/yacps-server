@@ -10,4 +10,7 @@ export const Config = {
     memoryCost: 65536, // Memory cost in KB, default: 64 MiB
     parallelism: 1, // Number of threads, default: 1
   },
+
+  // Rating
+  DEFAULT_BASE_RATING: 1200,
 };

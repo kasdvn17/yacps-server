@@ -21,6 +21,8 @@ model User {
   // DOB      DateTime
   perms    BigInt  @default(0)
 
+  rating Int?
+
   isDeleted Boolean    @default(false)
   status    UserStatus @default(CONF_AWAITING)
 
