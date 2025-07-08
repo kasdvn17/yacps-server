@@ -2,7 +2,6 @@ import {
   Body,
   ConflictException,
   Controller,
-  ForbiddenException,
   Get,
   InternalServerErrorException,
   Logger,
@@ -20,7 +19,6 @@ import { PermissionsService } from '../auth/permissions.service';
 import { Request } from 'express';
 import { CreateProblemDTO } from './problems.dto';
 import { PrismaService } from '@/prisma/prisma.service';
-import { Category, Problem, Type } from '@prisma/client';
 
 @Controller()
 export class ProblemsController {
@@ -46,10 +44,26 @@ export class ProblemsController {
       )
     )
       hasViewAllProbs = true;
-    let problems: (Problem & { category: Category; types: Type[] })[];
-    if (hasViewAllProbs)
-      problems = await this.problemsService.findAllSystemProblems();
-    else problems = await this.problemsService.findAllPublicProblems();
+
+    const problems = await this.prismaService.problem.findMany({
+      where: {
+        OR: hasViewAllProbs
+          ? []
+          : [
+              { AND: { isPublic: true, isDeleted: false } },
+              { authors: { some: req['user']?.id } },
+              { curators: { some: req['user']?.id } },
+              { AND: { testers: { some: req['user']?.id }, isDeleted: false } },
+            ],
+      },
+      include: {
+        category: true,
+        types: true,
+      },
+      orderBy: {
+        id: 'desc',
+      },
+    });
 
     return await Promise.all(
       problems.map(async (v) => {
@@ -93,20 +107,38 @@ export class ProblemsController {
   @Public()
   @UseGuards(AuthGuard)
   async getSpecificProblem(@Req() req: Request, @Param('slug') slug: string) {
-    const problem = await this.problemsService.findProblem(slug, undefined);
-    if (!problem) throw new NotFoundException('PROBLEM_NOT_FOUND');
-    if (problem.isDeleted || problem.isPublic == false) {
-      // in the future: organizations :v
-      if (
-        !req['user'] ||
-        !req['user'].perms ||
-        !this.permissionsService.hasPerms(
-          req['user'].perms,
-          UserPermissions.VIEW_ALL_PROBLEMS,
-        )
+    let hasViewAllProbs = false;
+    if (
+      req['user'] &&
+      req['user'].perms &&
+      this.permissionsService.hasPerms(
+        req['user'].perms,
+        UserPermissions.VIEW_ALL_PROBLEMS,
       )
-        throw new ForbiddenException('PROBLEM_UNAVAILABLE');
-    }
+    )
+      hasViewAllProbs = true;
+
+    const problem = await this.prismaService.problem.findUnique({
+      where: {
+        OR: hasViewAllProbs
+          ? []
+          : [
+              { AND: { isPublic: true, isDeleted: false } },
+              { authors: { some: req['user']?.id } },
+              { curators: { some: req['user']?.id } },
+              { AND: { testers: { some: req['user']?.id }, isDeleted: false } },
+            ],
+        slug,
+      },
+      include: {
+        category: true,
+        types: true,
+        testEnvironments: true,
+        authors: true,
+        curators: true,
+      },
+    });
+    if (!problem) throw new NotFoundException('PROBLEM_NOT_FOUND');
     return {
       code: problem.slug,
       name: problem.name,

@@ -28,8 +28,14 @@ model User {
   sessions      Session[]
   submissions   Submission[]
   participation Contestant[]
-  authors       Problem[]    @relation("AuthorToProblem")
-  curators      Problem[]    @relation("CuratorToProblem")
+
+  contAuthors  Contest[] @relation("AuthorToContest")
+  contCurators Contest[] @relation("CuratorToContest")
+  contTesters  Contest[] @relation("TesterToContest")
+
+  probAuthors  Problem[] @relation("AuthorToProblem")
+  probCurators Problem[] @relation("CuratorToProblem")
+  probTesters  Problem[] @relation("TesterToProblem")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -73,37 +79,67 @@ model Session {
 }
 
 model Contestant {
-  contest   Contest @relation(fields: [contestId], references: [id])
-  contestId Int
-  user      User    @relation(fields: [userId], references: [id])
-  userId    String
+  id Int @id @default(autoincrement())
 
-  @@id([contestId, userId])
+  contest   Contest @relation(fields: [contestId], references: [id])
+  contestId Int     @unique
+
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @unique
+
+  rank  Int // 1-indexed ranking
+  score Float? @default(0) // Optional, for IOI scoring
+
+  oldRating    Int
+  newRating    Int
+  ratingChange Int
+
+  isVirtual Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  submissions Submission[]
+
+  @@index([userId])
+  @@index([contestId])
+  @@index([userId, contestId])
 }
 
 model Contest {
   id   Int    @id @default(autoincrement())
   slug String @unique
 
-  name String
-
-  minRating Int @default(0)
-  maxRating Int @default(0)
+  name    String
+  isRated Boolean      @default(true)
+  style   ContestStyle
 
   isDeleted Boolean @default(false)
-  authorId  String
+
+  authors  User[] @relation("AuthorToContest")
+  curators User[] @relation("CuratorToContest")
+  testers  User[] @relation("TesterToContest")
 
   participants Contestant[]
   problems     Problem[]
 }
 
+enum ContestStyle {
+  IOI
+  ICPC
+  TopCoder
+  Heuristic
+}
+
 model Submission {
   id Int @id @default(autoincrement())
 
-  author    User    @relation(fields: [authorId], references: [id])
-  authorId  String
-  problem   Problem @relation(fields: [problemId], references: [id])
-  problemId Int
+  author       User        @relation(fields: [authorId], references: [id])
+  authorId     String
+  problem      Problem     @relation(fields: [problemId], references: [id])
+  problemId    Int
+  contestant   Contestant? @relation(fields: [contestantId], references: [id])
+  contestantId Int?
 
   code     String
   language String
@@ -117,7 +153,10 @@ model Submission {
 
   @@index([authorId])
   @@index([problemId])
+  @@index([contestantId])
   @@index([authorId, problemId])
+  @@index([authorId, contestantId])
+  @@index([contestantId, problemId])
 }
 
 enum SubmissionVerdict {
@@ -163,6 +202,7 @@ model Problem {
   problemSource String?
   authors       User[]  @relation("AuthorToProblem")
   curators      User[]  @relation("CuratorToProblem")
+  testers       User[]  @relation("TesterToProblem")
 
   pdfUuid String?
 
