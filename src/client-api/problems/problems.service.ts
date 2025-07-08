@@ -118,21 +118,30 @@ export class ProblemsService {
     }
   }
 
-  async getProblemsStatusList(
-    view_all_probs: boolean = false,
-    authorId: string,
-  ) {
+  async getProblemsStatusList(view_all_probs: boolean = false, userId: string) {
     return await this.prismaService.$queryRaw`
-    SELECT
-      p.slug,
-      p."isLocked",
-      p."isPublic",
-      bool_or(s.verdict = 'AC') AS solved,
-      count(s.*) > 0 AS attempted
-    FROM "Problem" p
-    LEFT JOIN "Submission" s ON s."problemId" = p.id AND s."authorId" = ${authorId}
-    WHERE (${view_all_probs} OR (p."isPublic" = true AND p."isDeleted" = false))
-    GROUP BY p.slug, p."isLocked", p."isPublic";
+    WITH user_visible_problems AS (
+    SELECT "A" FROM "_AuthorToProblem" WHERE "B" = ${userId}
+    UNION
+    SELECT "A" FROM "_CuratorToProblem" WHERE "B" = ${userId}
+    UNION
+    SELECT "A" FROM "_TesterToProblem" WHERE "B" = ${userId}
+  )
+
+  SELECT
+    p.slug,
+    p."isLocked",
+    p."isPublic",
+    bool_or(s.verdict = 'AC') AS solved,
+    count(s.*) > 0 AS attempted
+  FROM "Problem" p
+  LEFT JOIN "Submission" s ON s."problemId" = p.id AND s."authorId" = ${userId}
+  WHERE (
+    ${view_all_probs} OR
+    (p."isPublic" = true AND p."isDeleted" = false) OR
+    (p.id IN (SELECT "A" FROM user_visible_problems))
+  )
+  GROUP BY p.slug, p."isLocked", p."isPublic";
   `;
   }
 }
