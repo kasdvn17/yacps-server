@@ -6,7 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "bun prisma migrate deploy && nest build",
+    "build": "bun prisma migrate deploy && bun prisma generate && nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:pm2": "pm2 start --name \"yacps-server\" bun -- start:prod",
