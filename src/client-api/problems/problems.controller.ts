@@ -122,18 +122,21 @@ export class ProblemsController {
     )
       hasViewAllProbs = true;
 
+    const userId = req['user']?.id;
     const problem = await this.prismaService.problem.findUnique({
       where: hasViewAllProbs
         ? { slug }
-        : {
-            OR: [
-              { AND: { isPublic: true, isDeleted: false } },
-              { authors: { some: { id: req['user']?.id } } },
-              { curators: { some: { id: req['user']?.id } } },
-              { testers: { some: { id: req['user']?.id } } },
-            ],
-            slug,
-          },
+        : userId
+          ? {
+              OR: [
+                { isPublic: true, isDeleted: false },
+                { authors: { some: { id: userId } } },
+                { curators: { some: { id: userId } } },
+                { testers: { some: { id: userId } } },
+              ],
+              slug,
+            }
+          : { isPublic: true, isDeleted: false, slug },
       include: {
         category: true,
         types: true,
