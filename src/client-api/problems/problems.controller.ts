@@ -45,17 +45,21 @@ export class ProblemsController {
     )
       hasViewAllProbs = true;
 
+    const userId = req['user']?.id;
+
     const problems = await this.prismaService.problem.findMany({
       where: hasViewAllProbs
         ? {}
-        : {
-            OR: [
-              { AND: { isPublic: true, isDeleted: false } },
-              { authors: { some: { id: req['user']?.id } } },
-              { curators: { some: { id: req['user']?.id } } },
-              { testers: { some: { id: req['user']?.id } } },
-            ],
-          },
+        : userId
+          ? {
+              OR: [
+                { isPublic: true, isDeleted: false },
+                { authors: { some: { id: userId } } },
+                { curators: { some: { id: userId } } },
+                { testers: { some: { id: userId } } },
+              ],
+            }
+          : { isPublic: true, isDeleted: false },
       include: {
         category: true,
         types: true,
@@ -119,17 +123,17 @@ export class ProblemsController {
       hasViewAllProbs = true;
 
     const problem = await this.prismaService.problem.findUnique({
-      where: {
-        OR: hasViewAllProbs
-          ? []
-          : [
+      where: hasViewAllProbs
+        ? { slug }
+        : {
+            OR: [
               { AND: { isPublic: true, isDeleted: false } },
               { authors: { some: { id: req['user']?.id } } },
               { curators: { some: { id: req['user']?.id } } },
               { testers: { some: { id: req['user']?.id } } },
             ],
-        slug,
-      },
+            slug,
+          },
       include: {
         category: true,
         types: true,
