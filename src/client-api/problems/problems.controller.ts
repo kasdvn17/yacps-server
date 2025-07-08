@@ -46,16 +46,16 @@ export class ProblemsController {
       hasViewAllProbs = true;
 
     const problems = await this.prismaService.problem.findMany({
-      where: {
-        OR: hasViewAllProbs
-          ? []
-          : [
+      where: hasViewAllProbs
+        ? {}
+        : {
+            OR: [
               { AND: { isPublic: true, isDeleted: false } },
-              { authors: { some: req['user']?.id } },
-              { curators: { some: req['user']?.id } },
-              { AND: { testers: { some: req['user']?.id }, isDeleted: false } },
+              { authors: { some: { id: req['user']?.id } } },
+              { curators: { some: { id: req['user']?.id } } },
+              { testers: { some: { id: req['user']?.id } } },
             ],
-      },
+          },
       include: {
         category: true,
         types: true,
@@ -124,9 +124,9 @@ export class ProblemsController {
           ? []
           : [
               { AND: { isPublic: true, isDeleted: false } },
-              { authors: { some: req['user']?.id } },
-              { curators: { some: req['user']?.id } },
-              { AND: { testers: { some: req['user']?.id }, isDeleted: false } },
+              { authors: { some: { id: req['user']?.id } } },
+              { curators: { some: { id: req['user']?.id } } },
+              { testers: { some: { id: req['user']?.id } } },
             ],
         slug,
       },
