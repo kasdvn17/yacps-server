@@ -12,5 +12,5 @@ export const Config = {
   },
 
   // Rating
-  DEFAULT_BASE_RATING: 1200,
+  DEFAULT_BASE_RATING: 1200, // Base rating for unrated, default: 1200
 };

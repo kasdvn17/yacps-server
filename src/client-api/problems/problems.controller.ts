@@ -72,7 +72,7 @@ export class ProblemsController {
     return await Promise.all(
       problems.map(async (v) => {
         const stats = await this.problemsService.getBasicSubStats(v.id);
-        return {
+        const res = {
           code: v.slug,
           name: v.name,
 
@@ -82,9 +82,9 @@ export class ProblemsController {
           solution: !!v.solution,
 
           stats,
-
-          isDeleted: v.isDeleted,
         };
+        if (v.isDeleted) res['isDeleted'] = true;
+        return res;
       }),
     );
   }
@@ -146,7 +146,7 @@ export class ProblemsController {
       },
     });
     if (!problem) throw new NotFoundException('PROBLEM_NOT_FOUND');
-    return {
+    const res = {
       code: problem.slug,
       name: problem.name,
       description: problem.description,
@@ -168,9 +168,9 @@ export class ProblemsController {
       problemSource: problem.problemSource,
       author: problem.authors.map((v) => v.username),
       curator: problem.curators.map((v) => v.username),
-
-      isDeleted: problem.isDeleted,
     };
+    if (problem.isDeleted) res['isDeleted'] = true;
+    return res;
   }
 
   @Post('/new')
