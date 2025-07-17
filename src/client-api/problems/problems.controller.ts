@@ -69,24 +69,28 @@ export class ProblemsController {
       },
     });
 
-    return await Promise.all(
-      problems.map(async (v) => {
-        const stats = await this.problemsService.getBasicSubStats(v.id);
-        const res = {
-          code: v.slug,
-          name: v.name,
-
-          category: v.category.name,
-          type: v.types.map((x) => x.name),
-          points: v.points,
-          solution: !!v.solution,
-
-          stats,
-        };
-        if (v.isDeleted) res['isDeleted'] = true;
-        return res;
-      }),
+    const subStats = await this.problemsService.getBatchBasicSubStats(
+      problems.map((v) => v.id),
     );
+
+    return problems.map((v) => {
+      const stats = subStats.find((x) => x.id === v.id);
+      if (stats) delete stats.id;
+
+      const res = {
+        code: v.slug,
+        name: v.name,
+
+        category: v.category.name,
+        type: v.types.map((x) => x.name),
+        points: v.points,
+        solution: !!v.solution,
+
+        stats,
+        ...(v.isDeleted && { isDeleted: true }),
+      };
+      return res;
+    });
   }
 
   @Get('/all/status')
@@ -168,8 +172,8 @@ export class ProblemsController {
       problemSource: problem.problemSource,
       author: problem.authors.map((v) => v.username),
       curator: problem.curators.map((v) => v.username),
+      ...(problem.isDeleted && { isDeleted: true }),
     };
-    if (problem.isDeleted) res['isDeleted'] = true;
     return res;
   }
 
