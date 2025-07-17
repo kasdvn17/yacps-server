@@ -84,10 +84,10 @@ model Contestant {
   id Int @id @default(autoincrement())
 
   contest   Contest @relation(fields: [contestId], references: [id])
-  contestId Int     @unique
+  contestId Int
 
   user   User   @relation(fields: [userId], references: [id])
-  userId String @unique
+  userId String
 
   rank  Int // 1-indexed ranking
   score Float? @default(0) // Optional, for IOI scoring

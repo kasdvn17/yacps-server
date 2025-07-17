@@ -4,6 +4,7 @@ import { readFileSync } from 'fs';
 import { ProblemsService } from '@/client-api/problems/problems.service';
 import { UsersService } from '@/client-api/users/users.service';
 import { PrismaService } from '@/prisma/prisma.service';
+import { PermissionsService } from '@/client-api/auth/permissions.service';
 
 const prisma = new PrismaClient();
 const rl = readline.createInterface({
@@ -44,6 +45,7 @@ async function create() {
   const extractedCode = readFileSync(`./tmp/${codeFileName}`, 'utf-8');
   const problem = await new ProblemsService(
     new PrismaService(),
+    new PermissionsService(),
   ).findProblemWithId(pId, false);
   if (!problem) throw new Error('No problem with the provided ID found');
   const authorId = (

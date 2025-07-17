@@ -15,7 +15,6 @@ import { AuthGuard } from '../auth/auth.guard';
 import { Perms, Public } from '../auth/auth.decorator';
 import { UserPermissions } from 'constants/permissions';
 import { ProblemsService } from './problems.service';
-import { PermissionsService } from '../auth/permissions.service';
 import { Request } from 'express';
 import { CreateProblemDTO } from './problems.dto';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -26,7 +25,6 @@ export class ProblemsController {
 
   constructor(
     private readonly problemsService: ProblemsService,
-    private readonly permissionsService: PermissionsService,
     private readonly prismaService: PrismaService,
   ) {}
 
@@ -34,40 +32,9 @@ export class ProblemsController {
   @Public()
   @UseGuards(AuthGuard)
   async getAllProblems(@Req() req: Request) {
-    let hasViewAllProbs = false;
-    if (
-      req['user'] &&
-      req['user'].perms &&
-      this.permissionsService.hasPerms(
-        req['user'].perms,
-        UserPermissions.VIEW_ALL_PROBLEMS,
-      )
-    )
-      hasViewAllProbs = true;
-
-    const userId = req['user']?.id;
-
-    const problems = await this.prismaService.problem.findMany({
-      where: hasViewAllProbs
-        ? {}
-        : userId
-          ? {
-              OR: [
-                { isPublic: true, isDeleted: false },
-                { authors: { some: { id: userId } } },
-                { curators: { some: { id: userId } } },
-                { testers: { some: { id: userId } } },
-              ],
-            }
-          : { isPublic: true, isDeleted: false },
-      include: {
-        category: true,
-        types: true,
-      },
-      orderBy: {
-        id: 'desc',
-      },
-    });
+    const problems = await this.problemsService.findViewableProblems(
+      req['user'],
+    );
 
     const subStats = await this.problemsService.getBatchBasicSubStats(
       problems.map((v) => v.id),
@@ -96,17 +63,8 @@ export class ProblemsController {
   @Get('/all/status')
   @UseGuards(AuthGuard)
   async getAllProblemsStatus(@Req() req: Request) {
-    let hasViewAllProbs = false;
-    if (
-      req['user'].perms &&
-      this.permissionsService.hasPerms(
-        req['user'].perms,
-        UserPermissions.VIEW_ALL_PROBLEMS,
-      )
-    )
-      hasViewAllProbs = true;
     return await this.problemsService.getProblemsStatusList(
-      hasViewAllProbs,
+      this.problemsService.hasViewAllProbsPerms(req['user']),
       req['user'].id,
     );
   }
@@ -115,40 +73,10 @@ export class ProblemsController {
   @Public()
   @UseGuards(AuthGuard)
   async getSpecificProblem(@Req() req: Request, @Param('slug') slug: string) {
-    let hasViewAllProbs = false;
-    if (
-      req['user'] &&
-      req['user'].perms &&
-      this.permissionsService.hasPerms(
-        req['user'].perms,
-        UserPermissions.VIEW_ALL_PROBLEMS,
-      )
-    )
-      hasViewAllProbs = true;
-
-    const userId = req['user']?.id;
-    const problem = await this.prismaService.problem.findUnique({
-      where: hasViewAllProbs
-        ? { slug }
-        : userId
-          ? {
-              OR: [
-                { isPublic: true, isDeleted: false },
-                { authors: { some: { id: userId } } },
-                { curators: { some: { id: userId } } },
-                { testers: { some: { id: userId } } },
-              ],
-              slug,
-            }
-          : { isPublic: true, isDeleted: false, slug },
-      include: {
-        category: true,
-        types: true,
-        testEnvironments: true,
-        authors: true,
-        curators: true,
-      },
-    });
+    const problem = await this.problemsService.findViewableProblemWithSlug(
+      slug,
+      req['user'],
+    );
     if (!problem) throw new NotFoundException('PROBLEM_NOT_FOUND');
     const res = {
       code: problem.slug,
@@ -180,7 +108,7 @@ export class ProblemsController {
   @Post('/new')
   @UseGuards(AuthGuard)
   @Perms([UserPermissions.CREATE_NEW_PROBLEM])
-  async createProblem(@Body() data: CreateProblemDTO) {
+  async createProblem(@Body() data: CreateProblemDTO, @Req() req: Request) {
     if (await this.problemsService.exists(data.slug))
       throw new ConflictException('PROBLEM_ALREADY_FOUND');
 
@@ -196,19 +124,21 @@ export class ProblemsController {
           curators: {
             connect: data.curators?.map((v) => ({
               id: v,
-            })),
+            })) || [{ id: req['user'].id }],
           },
           authors: {
-            connect: data.authors?.map((v) => ({
-              id: v,
-            })),
+            connect:
+              data.authors?.map((v) => ({
+                id: v,
+              })) || [],
           },
           pdfUuid: data.pdfUuid,
           categoryId: data.categoryId,
           types: {
-            connect: data.types?.map((v) => ({
-              id: v,
-            })),
+            connect:
+              data.types?.map((v) => ({
+                id: v,
+              })) || [],
           },
           solution: data.solution,
           testEnvironments: { create: {} },
