@@ -5,22 +5,73 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, User } from '@prisma/client';
+import { UserPermissions } from 'constants/permissions';
+import { PermissionsService } from '../auth/permissions.service';
 
 @Injectable()
 export class ProblemsService {
-  constructor(private prismaService: PrismaService) {}
+  constructor(
+    private prismaService: PrismaService,
+    private permissionsService: PermissionsService,
+  ) {}
   private logger = new Logger(ProblemsService.name);
 
-  async findAllPublicProblems() {
+  // async findAllPublicProblems() {
+  //   return await this.prismaService.problem.findMany({
+  //     where: {
+  //       isPublic: true,
+  //       isDeleted: false,
+  //     },
+  //     include: {
+  //       category: true,
+  //       types: true,
+  //     },
+  //     orderBy: {
+  //       id: 'desc',
+  //     },
+  //   });
+  // }
+
+  // async findAllSystemProblems() {
+  //   return await this.prismaService.problem.findMany({
+  //     include: {
+  //       category: true,
+  //       types: true,
+  //     },
+  //     orderBy: {
+  //       id: 'desc',
+  //     },
+  //   });
+  // }
+
+  async findViewableProblems(user?: User) {
+    const userId = user?.id;
+
     return await this.prismaService.problem.findMany({
-      where: {
-        isPublic: true,
-        isDeleted: false,
-      },
+      where: this.hasViewAllProbsPerms(user)
+        ? {}
+        : userId
+          ? {
+              OR: [
+                { isPublic: true, isDeleted: false },
+                { authors: { some: { id: userId } } },
+                { curators: { some: { id: userId } } },
+                { testers: { some: { id: userId } } },
+              ],
+            }
+          : { isPublic: true, isDeleted: false },
       include: {
-        category: true,
-        types: true,
+        category: {
+          select: {
+            name: true,
+          },
+        },
+        types: {
+          select: {
+            name: true,
+          },
+        },
       },
       orderBy: {
         id: 'desc',
@@ -28,23 +79,22 @@ export class ProblemsService {
     });
   }
 
-  async findAllSystemProblems() {
-    return await this.prismaService.problem.findMany({
-      include: {
-        category: true,
-        types: true,
-      },
-      orderBy: {
-        id: 'desc',
-      },
-    });
-  }
-
-  async findProblem(slug: string, isDeleted: boolean | undefined) {
-    const problem = await this.prismaService.problem.findUnique({
-      where: {
-        slug,
-      },
+  async findViewableProblemWithSlug(slug: string, user?: User) {
+    const userId = user?.id;
+    return await this.prismaService.problem.findUnique({
+      where: this.hasViewAllProbsPerms(user)
+        ? { slug }
+        : userId
+          ? {
+              OR: [
+                { isPublic: true, isDeleted: false },
+                { authors: { some: { id: userId } } },
+                { curators: { some: { id: userId } } },
+                { testers: { some: { id: userId } } },
+              ],
+              slug,
+            }
+          : { isPublic: true, isDeleted: false, slug },
       include: {
         category: {
           select: {
@@ -57,20 +107,20 @@ export class ProblemsService {
           },
         },
         testEnvironments: true,
-        curators: {
-          select: {
-            username: true,
-          },
-        },
         authors: {
           select: {
             username: true,
+            rating: true,
+          },
+        },
+        curators: {
+          select: {
+            username: true,
+            rating: true,
           },
         },
       },
     });
-    if (isDeleted == false && problem?.isDeleted) return null;
-    return problem;
   }
 
   async findProblemWithId(id: number, isDeleted: boolean | undefined) {
@@ -99,6 +149,7 @@ export class ProblemsService {
   }
 
   async getBatchBasicSubStats(ids: number[]) {
+    if (ids.length == 0) return [];
     if (ids.some((v) => !Number.isInteger(v)))
       throw new BadRequestException('ID_NOT_INTEGER'); // prevent xss injection too
     try {
@@ -171,5 +222,19 @@ export class ProblemsService {
   )
   GROUP BY p.slug, p."isLocked", p."isPublic";
   `;
+  }
+
+  hasViewAllProbsPerms(user?: User) {
+    let hasViewAllProbs = false;
+    if (
+      user &&
+      user.perms &&
+      this.permissionsService.hasPerms(
+        user.perms,
+        UserPermissions.VIEW_ALL_PROBLEMS,
+      )
+    )
+      hasViewAllProbs = true;
+    return hasViewAllProbs;
   }
 }
