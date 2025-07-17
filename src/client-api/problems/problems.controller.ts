@@ -2,7 +2,6 @@ import {
   Body,
   ConflictException,
   Controller,
-  ForbiddenException,
   Get,
   InternalServerErrorException,
   Logger,
@@ -16,11 +15,9 @@ import { AuthGuard } from '../auth/auth.guard';
 import { Perms, Public } from '../auth/auth.decorator';
 import { UserPermissions } from 'constants/permissions';
 import { ProblemsService } from './problems.service';
-import { PermissionsService } from '../auth/permissions.service';
 import { Request } from 'express';
 import { CreateProblemDTO } from './problems.dto';
 import { PrismaService } from '@/prisma/prisma.service';
-import { Category, Problem, Type } from '@prisma/client';
 
 @Controller()
 export class ProblemsController {
@@ -28,7 +25,6 @@ export class ProblemsController {
 
   constructor(
     private readonly problemsService: ProblemsService,
-    private readonly permissionsService: PermissionsService,
     private readonly prismaService: PrismaService,
   ) {}
 
@@ -36,89 +32,60 @@ export class ProblemsController {
   @Public()
   @UseGuards(AuthGuard)
   async getAllProblems(@Req() req: Request) {
-    let hasViewAllProbs = false;
-    if (
-      req['user'] &&
-      req['user'].perms &&
-      this.permissionsService.hasPerms(
-        req['user'].perms,
-        UserPermissions.VIEW_ALL_PROBLEMS,
-      )
-    )
-      hasViewAllProbs = true;
-    let problems: (Problem & { category: Category; types: Type[] })[];
-    if (hasViewAllProbs)
-      problems = await this.problemsService.findAllSystemProblems();
-    else problems = await this.problemsService.findAllPublicProblems();
+    const problems = await this.problemsService.findViewableProblems(
+      req['user'],
+    );
 
-    return problems.map((v) => ({
-      code: v.slug,
-      name: v.name,
+    const subStats = await this.problemsService.getBatchBasicSubStats(
+      problems.map((v) => v.id),
+    );
 
-      category: v.category.name,
-      type: v.types.map((x) => x.name),
-      points: v.points,
-      solution: !!v.solution,
-      stats: {
-        submissions: v.total_subs,
-        ACSubmissions: v.AC_subs,
-      },
+    return problems.map((v) => {
+      const stats = subStats.find((x) => x.id === v.id) ?? {
+        submissions: 0,
+        ACSubmissions: 0,
+      };
+      if (stats) delete stats.id;
 
-      isDeleted: v.isDeleted,
-    }));
+      const res = {
+        code: v.slug,
+        name: v.name,
+
+        category: v.category.name,
+        type: v.types.map((x) => x.name),
+        points: v.points,
+        solution: !!v.solution,
+
+        stats,
+        ...(v.isDeleted && { isDeleted: true }),
+      };
+      return res;
+    });
   }
 
   @Get('/all/status')
   @UseGuards(AuthGuard)
   async getAllProblemsStatus(@Req() req: Request) {
-    let hasViewAllProbs = false;
-    if (
-      req['user'].perms &&
-      this.permissionsService.hasPerms(
-        req['user'].perms,
-        UserPermissions.VIEW_ALL_PROBLEMS,
-      )
-    )
-      hasViewAllProbs = true;
-    const showHidden = hasViewAllProbs ? true : false;
-
-    const result = await this.prismaService.$queryRaw`
-        SELECT
-          p.slug,
-          p."isLocked",
-          p."isPublic",
-          bool_or(s.verdict = 'AC') AS solved,
-          count(s.*) > 0 AS attempted
-        FROM "Problem" p
-        LEFT JOIN "Submission" s ON s."problemSlug" = p.slug AND s."authorId" = ${req['user'].id}
-        WHERE (${showHidden} OR (p."isPublic" = true AND p."isDeleted" = false))
-        GROUP BY p.slug, p."isLocked", p."isPublic";
-      `;
-    return result;
+    return await this.problemsService.getProblemsStatusList(
+      this.problemsService.hasViewAllProbsPerms(req['user']),
+      req['user'].id,
+    );
   }
 
-  @Get('/:slug')
+  @Get('/details/:slug')
   @Public()
   @UseGuards(AuthGuard)
   async getSpecificProblem(@Req() req: Request, @Param('slug') slug: string) {
-    const problem = await this.problemsService.findProblem(slug, undefined);
+    const problem = await this.problemsService.findViewableProblemWithSlug(
+      slug,
+      req['user'],
+    );
     if (!problem) throw new NotFoundException('PROBLEM_NOT_FOUND');
-    if (problem.isDeleted || problem.isPublic == false) {
-      // in the future: organizations :v
-      if (
-        !req['user'] ||
-        !req['user'].perms ||
-        !this.permissionsService.hasPerms(
-          req['user'].perms,
-          UserPermissions.VIEW_ALL_PROBLEMS,
-        )
-      )
-        throw new ForbiddenException('PROBLEM_UNAVAILABLE');
-    }
-    return {
+    const res = {
       code: problem.slug,
       name: problem.name,
       description: problem.description,
+      pdf: problem.pdfUuid,
 
       timeLimit: problem.testEnvironments?.timeLimit || '',
       memoryLimit: problem.testEnvironments?.memoryLimit || '',
@@ -129,24 +96,22 @@ export class ProblemsController {
 
       category: problem.category.name,
       type: problem.types.map((x) => x.name),
+
       points: problem.points,
       solution: problem.solution,
-      author: problem.authors,
-      curator: problem.curators,
-      pdf: problem.pdfUuid,
-      stats: {
-        submissions: problem.total_subs,
-        ACSubmissions: problem.AC_subs,
-      },
 
-      isDeleted: problem.isDeleted,
+      problemSource: problem.problemSource,
+      author: problem.authors.map((v) => v.username),
+      curator: problem.curators.map((v) => v.username),
+      ...(problem.isDeleted && { isDeleted: true }),
     };
+    return res;
   }
 
-  @Post('/')
+  @Post('/new')
   @UseGuards(AuthGuard)
   @Perms([UserPermissions.CREATE_NEW_PROBLEM])
-  async createProblem(@Body() data: CreateProblemDTO) {
+  async createProblem(@Body() data: CreateProblemDTO, @Req() req: Request) {
     if (await this.problemsService.exists(data.slug))
       throw new ConflictException('PROBLEM_ALREADY_FOUND');
 
@@ -159,24 +124,33 @@ export class ProblemsController {
           points: data.points,
           input: data.input,
           output: data.output,
-          curators: data.curators,
-          authors: data.authors,
+          curators: {
+            connect: data.curators?.map((v) => ({
+              id: v,
+            })) || [{ id: req['user'].id }],
+          },
+          authors: {
+            connect:
+              data.authors?.map((v) => ({
+                id: v,
+              })) || [],
+          },
           pdfUuid: data.pdfUuid,
           categoryId: data.categoryId,
           types: {
-            connect: data.types?.map((v) => ({
-              id: v,
-            })),
+            connect:
+              data.types?.map((v) => ({
+                id: v,
+              })) || [],
           },
           solution: data.solution,
-          subStats: { create: {} },
           testEnvironments: { create: {} },
         },
       });
       return problem;
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR');
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
     }
   }
 }
