@@ -179,7 +179,6 @@ export class ProblemsService {
     try {
       // using query raw to optimize performance
       const result: {
-        id: number;
         submissions: number;
         ACSubmissions: number;
       }[] = await this.prismaService.$queryRaw`
@@ -189,7 +188,12 @@ export class ProblemsService {
       FROM "Submission"
       WHERE "problemId" = ${id};
     `;
-      return result[0];
+      return (
+        result[0] || {
+          submissions: 0,
+          ACSubmissions: 0,
+        }
+      );
     } catch (err) {
       this.logger.error(err);
       throw new InternalServerErrorException('UNKNOWN_ERROR', err);
