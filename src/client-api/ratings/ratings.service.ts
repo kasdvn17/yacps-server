@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class RatingsService {
-  constructor() {}
-
+  // TODO: Implement get users rating function
   async getUsersRating() {}
 }

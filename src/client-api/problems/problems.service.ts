@@ -5,6 +5,7 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ProblemsService {
@@ -97,21 +98,47 @@ export class ProblemsService {
     return !!prob;
   }
 
-  async getBasicSubStats(id: number) {
-    if (!Number.isInteger(id)) throw new BadRequestException('ID_NOT_INTEGER');
+  async getBatchBasicSubStats(ids: number[]) {
+    if (ids.some((v) => !Number.isInteger(v)))
+      throw new BadRequestException('ID_NOT_INTEGER'); // prevent xss injection too
     try {
-      const result: { id: number; total_subs: number; ac_subs: number }[] =
-        await this.prismaService.$queryRaw`
+      // using query raw to optimize performance
+      const result: {
+        id?: number;
+        submissions: number;
+        ACSubmissions: number;
+      }[] = await this.prismaService.$queryRaw`
       SELECT
-          COUNT(*)::int AS total_subs,
-          SUM(CASE WHEN verdict = 'AC' THEN 1 ELSE 0 END)::int AS ac_subs
+          COUNT(*)::int AS submissions,
+          SUM(CASE WHEN verdict = 'AC' THEN 1 ELSE 0 END)::int AS "ACSubmissions",
+          "problemId" AS id
+      FROM "Submission"
+      WHERE "problemId" IN (${Prisma.join(ids)})
+      GROUP BY "problemId";
+    `;
+      return result;
+    } catch (err) {
+      this.logger.error(err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+    }
+  }
+
+  async getBasicSubStats(id: number) {
+    if (!Number.isInteger(id)) throw new BadRequestException('ID_NOT_INTEGER'); // prevent xss injection too
+    try {
+      // using query raw to optimize performance
+      const result: {
+        id: number;
+        submissions: number;
+        ACSubmissions: number;
+      }[] = await this.prismaService.$queryRaw`
+      SELECT
+          COUNT(*)::int AS submissions,
+          SUM(CASE WHEN verdict = 'AC' THEN 1 ELSE 0 END)::int AS "ACSubmissions"
       FROM "Submission"
       WHERE "problemId" = ${id};
     `;
-      return {
-        submissions: result[0]?.total_subs || 0,
-        ACSubmissions: result[0]?.ac_subs || 0,
-      };
+      return result[0];
     } catch (err) {
       this.logger.error(err);
       throw new InternalServerErrorException('UNKNOWN_ERROR', err);
@@ -119,6 +146,7 @@ export class ProblemsService {
   }
 
   async getProblemsStatusList(view_all_probs: boolean = false, userId: string) {
+    // using query raw to optimize performance
     return await this.prismaService.$queryRaw`
     WITH user_visible_problems AS (
     SELECT "A" FROM "_AuthorToProblem" WHERE "B" = ${userId}
