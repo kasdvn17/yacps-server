@@ -1,7 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotImplementedException } from '@nestjs/common';
 
 @Injectable()
 export class RatingsService {
   // TODO: Implement get users rating function
-  async getUsersRating() {}
+  getUsersRating() {
+    throw new NotImplementedException();
+  }
 }

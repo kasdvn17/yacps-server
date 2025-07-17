@@ -41,7 +41,10 @@ export class ProblemsController {
     );
 
     return problems.map((v) => {
-      const stats = subStats.find((x) => x.id === v.id);
+      const stats = subStats.find((x) => x.id === v.id) ?? {
+        submissions: 0,
+        ACSubmissions: 0,
+      };
       if (stats) delete stats.id;
 
       const res = {
