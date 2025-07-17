@@ -4,6 +4,7 @@ import { readFileSync } from 'fs';
 import { ProblemsService } from '@/client-api/problems/problems.service';
 import { UsersService } from '@/client-api/users/users.service';
 import { PrismaService } from '@/prisma/prisma.service';
+import { PermissionsService } from '@/client-api/auth/permissions.service';
 
 const prisma = new PrismaClient();
 const rl = readline.createInterface({
@@ -21,7 +22,7 @@ function ask(question) {
 
 async function create() {
   await prisma.$connect();
-  const problemSlug = await ask('Enter the slug of the problem: ');
+  const problemId = await ask('Enter the ID of the problem: ');
   const authorUsername = await ask('Enter the username of the author: ');
   const codeFileName =
     (await ask(
@@ -32,7 +33,7 @@ async function create() {
       'Enter the coding language used by the submission (default: cpp)',
     )) || 'cpp';
   if (
-    typeof problemSlug != 'string' || // ts doesn't allow me to use arrays
+    typeof problemId != 'string' || // ts doesn't allow me to use arrays
     typeof authorUsername != 'string' ||
     typeof codeFileName != 'string' ||
     typeof language != 'string'
@@ -40,12 +41,13 @@ async function create() {
     console.log('Invalid option');
     process.exit(1);
   }
+  const pId = parseInt(problemId);
   const extractedCode = readFileSync(`./tmp/${codeFileName}`, 'utf-8');
-  const problem = await new ProblemsService(new PrismaService()).findProblem(
-    problemSlug,
-    false,
-  );
-  if (!problem) throw new Error('No problem with the provided slug found');
+  const problem = await new ProblemsService(
+    new PrismaService(),
+    new PermissionsService(),
+  ).findProblemWithId(pId, false);
+  if (!problem) throw new Error('No problem with the provided ID found');
   const authorId = (
     await new UsersService(new PrismaService()).findUser(
       { username: authorUsername },
@@ -56,7 +58,7 @@ async function create() {
   if (!authorId) throw new Error('No user with the provided username found');
   await prisma.submission.create({
     data: {
-      problemSlug,
+      problemId: pId,
       authorId,
       code: extractedCode,
       language,

@@ -1,37 +1,105 @@
 import { PrismaService } from '@/prisma/prisma.service';
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
+import { Prisma, User } from '@prisma/client';
+import { UserPermissions } from 'constants/permissions';
+import { PermissionsService } from '../auth/permissions.service';
 
 @Injectable()
 export class ProblemsService {
-  constructor(private prismaService: PrismaService) {}
+  constructor(
+    private prismaService: PrismaService,
+    private permissionsService: PermissionsService,
+  ) {}
+  private logger = new Logger(ProblemsService.name);
 
-  async findAllPublicProblems() {
+  async findViewableProblems(user?: User) {
+    const userId = user?.id;
+
     return await this.prismaService.problem.findMany({
-      where: {
-        isPublic: true,
-        isDeleted: false,
-      },
+      where: this.hasViewAllProbsPerms(user)
+        ? {}
+        : userId
+          ? {
+              OR: [
+                { isPublic: true, isDeleted: false },
+                { authors: { some: { id: userId } } },
+                { curators: { some: { id: userId } } },
+                { testers: { some: { id: userId } } },
+              ],
+            }
+          : { isPublic: true, isDeleted: false },
       include: {
-        category: true,
-        types: true,
+        category: {
+          select: {
+            name: true,
+          },
+        },
+        types: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        id: 'desc',
       },
     });
   }
 
-  async findAllSystemProblems() {
-    return await this.prismaService.problem.findMany({
-      include: {
-        category: true,
-        types: true,
-      },
-    });
-  }
-
-  async findProblem(slug: string, isDeleted: boolean | undefined) {
+  async findViewableProblemWithSlug(slug: string, user?: User) {
+    const userId = user?.id;
     return await this.prismaService.problem.findFirst({
+      where: this.hasViewAllProbsPerms(user)
+        ? { slug }
+        : userId
+          ? {
+              OR: [
+                { isPublic: true, isDeleted: false },
+                { authors: { some: { id: userId } } },
+                { curators: { some: { id: userId } } },
+                { testers: { some: { id: userId } } },
+              ],
+              slug,
+            }
+          : { isPublic: true, isDeleted: false, slug },
+      include: {
+        category: {
+          select: {
+            name: true,
+          },
+        },
+        types: {
+          select: {
+            name: true,
+          },
+        },
+        testEnvironments: true,
+        authors: {
+          select: {
+            username: true,
+            rating: true,
+          },
+        },
+        curators: {
+          select: {
+            username: true,
+            rating: true,
+          },
+        },
+      },
+    });
+  }
+
+  async findProblemWithId(id: number, isDeleted: boolean | undefined) {
+    if (!Number.isInteger(id)) throw new BadRequestException('ID_NOT_INTEGER');
+    const problem = await this.prismaService.problem.findUnique({
       where: {
-        slug,
-        isDeleted,
+        id,
       },
       include: {
         category: true,
@@ -39,14 +107,110 @@ export class ProblemsService {
         testEnvironments: true,
       },
     });
+    if (!isDeleted && problem?.isDeleted) return null;
+    return problem;
   }
 
   async exists(slug: string) {
-    const prob = await this.prismaService.problem.findFirst({
+    const prob = await this.prismaService.problem.findUnique({
       where: {
         slug,
       },
     });
     return !!prob;
+  }
+
+  async getBatchBasicSubStats(ids: number[]) {
+    if (ids.length == 0) return [];
+    if (ids.some((v) => !Number.isInteger(v)))
+      throw new BadRequestException('ID_NOT_INTEGER'); // prevent xss injection too
+    try {
+      // using query raw to optimize performance
+      const result: {
+        id?: number;
+        submissions: number;
+        ACSubmissions: number;
+      }[] = await this.prismaService.$queryRaw`
+      SELECT
+          COUNT(*)::int AS submissions,
+          SUM(CASE WHEN verdict = 'AC' THEN 1 ELSE 0 END)::int AS "ACSubmissions",
+          "problemId" AS id
+      FROM "Submission"
+      WHERE "problemId" IN (${Prisma.join(ids)})
+      GROUP BY "problemId";
+    `;
+      return result;
+    } catch (err) {
+      this.logger.error(err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+    }
+  }
+
+  async getBasicSubStats(id: number) {
+    if (!Number.isInteger(id)) throw new BadRequestException('ID_NOT_INTEGER'); // prevent xss injection too
+    try {
+      // using query raw to optimize performance
+      const result: {
+        submissions: number;
+        ACSubmissions: number;
+      }[] = await this.prismaService.$queryRaw`
+      SELECT
+          COUNT(*)::int AS submissions,
+          SUM(CASE WHEN verdict = 'AC' THEN 1 ELSE 0 END)::int AS "ACSubmissions"
+      FROM "Submission"
+      WHERE "problemId" = ${id};
+    `;
+      return (
+        result[0] || {
+          submissions: 0,
+          ACSubmissions: 0,
+        }
+      );
+    } catch (err) {
+      this.logger.error(err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+    }
+  }
+
+  async getProblemsStatusList(view_all_probs: boolean = false, userId: string) {
+    // using query raw to optimize performance
+    return await this.prismaService.$queryRaw`
+    WITH user_visible_problems AS (
+    SELECT "A" FROM "_AuthorToProblem" WHERE "B" = ${userId}
+    UNION
+    SELECT "A" FROM "_CuratorToProblem" WHERE "B" = ${userId}
+    UNION
+    SELECT "A" FROM "_TesterToProblem" WHERE "B" = ${userId}
+  )
+
+  SELECT
+    p.slug,
+    p."isLocked",
+    p."isPublic",
+    bool_or(s.verdict = 'AC') AS solved,
+    count(s.*) > 0 AS attempted
+  FROM "Problem" p
+  LEFT JOIN "Submission" s ON s."problemId" = p.id AND s."authorId" = ${userId}
+  WHERE (
+    ${view_all_probs} OR
+    (p."isPublic" = true AND p."isDeleted" = false) OR
+    (p.id IN (SELECT "A" FROM user_visible_problems))
+  )
+  GROUP BY p.slug, p."isLocked", p."isPublic";
+  `;
+  }
+
+  hasViewAllProbsPerms(user?: User) {
+    let hasViewAllProbs = false;
+    if (
+      user &&
+      user.perms &&
+      this.permissionsService.hasPerms(
+        user.perms,
+        UserPermissions.VIEW_ALL_PROBLEMS,
+      )
+    )
+      hasViewAllProbs = true;
+    return hasViewAllProbs;
   }
 }

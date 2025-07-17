@@ -25,13 +25,6 @@ async function proceed() {
   const oldT = Date.now();
   const role_name = 'Superuser_Role_' + oldT.toString();
   const perms = new PermissionsService().addPerms(0n, ['ADMINISTRATOR']).newBit;
-  const role = await prisma.role.create({
-    data: {
-      name: role_name,
-      color: 'ffffff',
-      perms,
-    },
-  });
   const user_name = 'Superuser_User_' + oldT.toString();
   const user_email = `emergency_${oldT}@script.com`;
   const user_pwd = random(15);
@@ -45,9 +38,9 @@ async function proceed() {
       status: 'ACTIVE',
       roles: {
         create: {
-          roleId: role.id,
-          assignedAt: new Date(oldT),
-          assignedBy: 'EmergencyScript',
+          name: role_name,
+          color: 'ffffff',
+          perms,
         },
       },
     },
