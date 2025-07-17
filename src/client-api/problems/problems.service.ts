@@ -17,34 +17,6 @@ export class ProblemsService {
   ) {}
   private logger = new Logger(ProblemsService.name);
 
-  // async findAllPublicProblems() {
-  //   return await this.prismaService.problem.findMany({
-  //     where: {
-  //       isPublic: true,
-  //       isDeleted: false,
-  //     },
-  //     include: {
-  //       category: true,
-  //       types: true,
-  //     },
-  //     orderBy: {
-  //       id: 'desc',
-  //     },
-  //   });
-  // }
-
-  // async findAllSystemProblems() {
-  //   return await this.prismaService.problem.findMany({
-  //     include: {
-  //       category: true,
-  //       types: true,
-  //     },
-  //     orderBy: {
-  //       id: 'desc',
-  //     },
-  //   });
-  // }
-
   async findViewableProblems(user?: User) {
     const userId = user?.id;
 
@@ -81,7 +53,7 @@ export class ProblemsService {
 
   async findViewableProblemWithSlug(slug: string, user?: User) {
     const userId = user?.id;
-    return await this.prismaService.problem.findUnique({
+    return await this.prismaService.problem.findFirst({
       where: this.hasViewAllProbsPerms(user)
         ? { slug }
         : userId
