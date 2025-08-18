@@ -82,6 +82,7 @@ export class ProblemsController {
     );
     if (!problem) throw new NotFoundException('PROBLEM_NOT_FOUND');
     const res = {
+      id: problem.id,
       code: problem.slug,
       name: problem.name,
       description: problem.description,
