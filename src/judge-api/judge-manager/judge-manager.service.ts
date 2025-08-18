@@ -318,8 +318,10 @@ export class JudgeManagerService implements OnModuleInit {
       maxMemory = Math.max(maxMemory, testCase.memory || 0);
 
       // If any test case failed, update final verdict
+      // Skipped test cases don't affect the final verdict
       if (
         testCase.verdict !== SubmissionVerdict.AC &&
+        testCase.verdict !== SubmissionVerdict.SK &&
         finalVerdict === SubmissionVerdict.AC
       ) {
         finalVerdict = testCase.verdict;
@@ -395,8 +397,12 @@ export class JudgeManagerService implements OnModuleInit {
   /**
    * Map DMOJ status to our submission verdict enum
    */
-  private mapDMOJStatusToVerdict(status: string): SubmissionVerdict {
-    const statusMap: Record<string, SubmissionVerdict> = {
+  private mapDMOJStatusToVerdict(status: string | number): SubmissionVerdict {
+    // Convert to string if it's a number
+    const statusStr = String(status);
+    
+    // First try string-based mapping (for compatibility)
+    const stringStatusMap: Record<string, SubmissionVerdict> = {
       AC: SubmissionVerdict.AC,
       WA: SubmissionVerdict.WA,
       TLE: SubmissionVerdict.TLE,
@@ -408,7 +414,25 @@ export class JudgeManagerService implements OnModuleInit {
       IE: SubmissionVerdict.ISE,
     };
 
-    return statusMap[status] || SubmissionVerdict.ISE;
+    if (stringStatusMap[statusStr]) {
+      return stringStatusMap[statusStr];
+    }
+
+    // DMOJ numeric status code mapping
+    const numericStatusMap: Record<string, SubmissionVerdict> = {
+      '0': SubmissionVerdict.AC, // Accepted
+      '1': SubmissionVerdict.WA, // Wrong Answer
+      '2': SubmissionVerdict.TLE, // Time Limit Exceeded
+      '3': SubmissionVerdict.MLE, // Memory Limit Exceeded
+      '4': SubmissionVerdict.OLE, // Output Limit Exceeded
+      '5': SubmissionVerdict.IR, // Invalid Return
+      '6': SubmissionVerdict.RTE, // Runtime Error
+      '7': SubmissionVerdict.CE, // Compilation Error
+      '8': SubmissionVerdict.ISE, // Internal Server Error
+      '32': SubmissionVerdict.SK, // Not executed (DMOJ status for skipped test cases)
+    };
+
+    return numericStatusMap[statusStr] || SubmissionVerdict.ISE;
   }
 
   /**
