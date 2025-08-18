@@ -241,7 +241,7 @@ export class JudgeManagerService implements OnModuleInit {
     );
 
     // Map DMOJ status to our verdict enum
-    const verdict = this.mapDMOJStatusToVerdict(data.status);
+    const verdict = this.mapDMOJStatusToVerdict(Number(data.status));
 
     // Store test case result
     await this.prisma.submissionTestCase.upsert({
@@ -311,20 +311,35 @@ export class JudgeManagerService implements OnModuleInit {
     let maxTime = 0;
     let maxMemory = 0;
 
+    // Verdict priority order (higher number = higher priority = worse verdict)
+    const verdictPriority = {
+      [SubmissionVerdict.AC]: 0,
+      [SubmissionVerdict.SK]: 0, // Skipped doesn't affect verdict
+      [SubmissionVerdict.WA]: 1,
+      [SubmissionVerdict.IR]: 2,
+      [SubmissionVerdict.OLE]: 3,
+      [SubmissionVerdict.MLE]: 4,
+      [SubmissionVerdict.TLE]: 5,
+      [SubmissionVerdict.RTE]: 6,
+      [SubmissionVerdict.CE]: 7,
+      [SubmissionVerdict.ISE]: 8,
+      [SubmissionVerdict.AB]: 9,
+    };
+
     for (const testCase of testCases) {
       totalPoints += testCase.points || 0;
       maxPoints += testCase.maxPoints || 0;
       maxTime = Math.max(maxTime, testCase.time || 0);
       maxMemory = Math.max(maxMemory, testCase.memory || 0);
 
-      // If any test case failed, update final verdict
-      // Skipped test cases don't affect the final verdict
-      if (
-        testCase.verdict !== SubmissionVerdict.AC &&
-        testCase.verdict !== SubmissionVerdict.SK &&
-        finalVerdict === SubmissionVerdict.AC
-      ) {
-        finalVerdict = testCase.verdict;
+      // Update final verdict to the worst non-skipped verdict
+      if (testCase.verdict !== SubmissionVerdict.SK) {
+        const currentPriority = verdictPriority[finalVerdict] || 0;
+        const testCasePriority = verdictPriority[testCase.verdict] || 0;
+
+        if (testCasePriority > currentPriority) {
+          finalVerdict = testCase.verdict;
+        }
       }
     }
 
@@ -397,39 +412,26 @@ export class JudgeManagerService implements OnModuleInit {
   /**
    * Map DMOJ status to our submission verdict enum
    */
-  private mapDMOJStatusToVerdict(status: string | number): SubmissionVerdict {
-    // Convert to string if it's a number
-    const statusStr = String(status);
-    
-    // First try string-based mapping (for compatibility)
-    const stringStatusMap: Record<string, SubmissionVerdict> = {
-      AC: SubmissionVerdict.AC,
-      WA: SubmissionVerdict.WA,
-      TLE: SubmissionVerdict.TLE,
-      MLE: SubmissionVerdict.MLE,
-      OLE: SubmissionVerdict.OLE,
-      IR: SubmissionVerdict.IR,
-      RTE: SubmissionVerdict.RTE,
-      CE: SubmissionVerdict.CE,
-      IE: SubmissionVerdict.ISE,
-    };
+  private mapDMOJStatusToVerdict(status: number): SubmissionVerdict {
+    const statusStr = status.toString();
 
-    if (stringStatusMap[statusStr]) {
-      return stringStatusMap[statusStr];
-    }
-
-    // DMOJ numeric status code mapping
+    // DMOJ result status codes mapping based on dmoj/result.py
+    // Using bit flags: AC=0, WA=1, RTE=2, TLE=4, MLE=8, IR=16, SC=32, OLE=64, IE=1073741824
     const numericStatusMap: Record<string, SubmissionVerdict> = {
       '0': SubmissionVerdict.AC, // Accepted
-      '1': SubmissionVerdict.WA, // Wrong Answer
-      '2': SubmissionVerdict.TLE, // Time Limit Exceeded
-      '3': SubmissionVerdict.MLE, // Memory Limit Exceeded
-      '4': SubmissionVerdict.OLE, // Output Limit Exceeded
-      '5': SubmissionVerdict.IR, // Invalid Return
-      '6': SubmissionVerdict.RTE, // Runtime Error
+      '1': SubmissionVerdict.WA, // Wrong Answer (1 << 0)
+      '2': SubmissionVerdict.RTE, // Runtime Error (1 << 1)
+      '4': SubmissionVerdict.TLE, // Time Limit Exceeded (1 << 2)
+      '8': SubmissionVerdict.MLE, // Memory Limit Exceeded (1 << 3)
+      '16': SubmissionVerdict.IR, // Invalid Return (1 << 4)
+      '32': SubmissionVerdict.SK, // Short Circuit/Skipped (1 << 5) - Special handling for skipped
+      '64': SubmissionVerdict.OLE, // Output Limit Exceeded (1 << 6)
+      '1073741824': SubmissionVerdict.ISE, // Internal Server Error (1 << 30)
+      // Additional commonly seen codes
+      '3': SubmissionVerdict.MLE, // Sometimes MLE appears as 3
+      '5': SubmissionVerdict.IR, // Sometimes IR appears as 5
+      '6': SubmissionVerdict.RTE, // Sometimes RTE appears as 6
       '7': SubmissionVerdict.CE, // Compilation Error
-      '8': SubmissionVerdict.ISE, // Internal Server Error
-      '32': SubmissionVerdict.SK, // Not executed (DMOJ status for skipped test cases)
     };
 
     return numericStatusMap[statusStr] || SubmissionVerdict.ISE;
