@@ -372,6 +372,26 @@ export class JudgeManagerService implements OnModuleInit {
   }
 
   /**
+   * Handle submission acknowledgment
+   */
+  @OnEvent('submission.acknowledged')
+  handleSubmissionAcknowledged(data: {
+    judgeId: string;
+    submissionId: number;
+  }) {
+    this.logger.log(
+      `✅ Submission ${data.submissionId} acknowledged by judge ${data.judgeId}`,
+    );
+
+    // Emit event for WebSocket clients to show that submission is being processed
+    this.eventEmitter.emit('submission.update', {
+      submissionId: data.submissionId,
+      status: 'ACKNOWLEDGED',
+      timestamp: new Date(),
+    });
+  }
+
+  /**
    * Map DMOJ status to our submission verdict enum
    */
   private mapDMOJStatusToVerdict(status: string): SubmissionVerdict {

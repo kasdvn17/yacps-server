@@ -230,6 +230,9 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       case 'submission-aborted':
         this.handleSubmissionAborted(judgeId, packet.data);
         break;
+      case 'submission-acknowledged':
+        this.handleSubmissionAcknowledged(judgeId, packet);
+        break;
       default:
         this.logger.warn(`❓ Unknown packet type: ${packet.name}`);
     }
@@ -270,12 +273,14 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
     }
 
     return this.sendPacket(judgeId, 'submission-request', {
-      submission_id: submission.id,
-      problem_id: submission.problem,
+      'submission-id': submission.id,
+      'problem-id': submission.problem,
       language: submission.language,
       source: submission.source,
-      time_limit: submission.time_limit,
-      memory_limit: submission.memory_limit,
+      'time-limit': submission.time_limit,
+      'memory-limit': submission.memory_limit,
+      'short-circuit': false, // Don't short circuit on first wrong answer
+      meta: {}, // Additional metadata
     });
   }
 
@@ -284,7 +289,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
    */
   abortSubmission(judgeId: string, submissionId: number): boolean {
     return this.sendPacket(judgeId, 'terminate-submission', {
-      submission_id: submissionId,
+      'submission-id': submissionId,
     });
   }
 
@@ -530,6 +535,17 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
     this.eventEmitter.emit('submission.aborted', {
       judgeId,
       submissionId: data.submission_id,
+    });
+  }
+
+  private handleSubmissionAcknowledged(judgeId: string, packet: any): void {
+    const submissionId = packet['submission-id'];
+    this.logger.log(
+      `✅ Submission ${submissionId} acknowledged by judge ${judgeId}`,
+    );
+    this.eventEmitter.emit('submission.acknowledged', {
+      judgeId,
+      submissionId,
     });
   }
 
