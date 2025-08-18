@@ -24,11 +24,17 @@ interface DMOJSubmissionData {
   memory_limit: number;
 }
 
+interface JudgeCapabilities {
+  problems: string[];
+  executors: { [key: string]: any };
+}
+
 @Injectable()
 export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DMOJBridgeService.name);
   private judgeConnections = new Map<string, net.Socket>();
   private authenticatedJudges = new Set<string>();
+  private judgeCapabilities = new Map<string, JudgeCapabilities>();
   private tcpServer: net.Server;
   private readonly port: number;
 
@@ -104,12 +110,14 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       this.logger.log(`Judge ${judgeId} disconnected`);
       this.judgeConnections.delete(judgeId);
       this.authenticatedJudges.delete(judgeId);
+      this.judgeCapabilities.delete(judgeId);
     });
 
     socket.on('error', (error) => {
       this.logger.error(`Judge ${judgeId} connection error:`, error);
       this.judgeConnections.delete(judgeId);
       this.authenticatedJudges.delete(judgeId);
+      this.judgeCapabilities.delete(judgeId);
     });
   }
 
@@ -332,6 +340,17 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       this.logger.log(`🎉 Judge ${judgeName} authenticated successfully!`);
       this.authenticatedJudges.add(judgeId);
 
+      // Store judge capabilities
+      const problems = (data.problems || []).map((p: any) => p[0]); // Extract problem names
+      const executors = data.executors || {};
+      
+      this.judgeCapabilities.set(judgeId, {
+        problems,
+        executors,
+      });
+
+      this.logger.log(`Judge ${judgeName} capabilities: ${problems.length} problems, ${Object.keys(executors).length} executors`);
+
       // Update last active timestamp
       await this.prismaService.judge.update({
         where: { id: judge.id },
@@ -489,6 +508,62 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Get judge capabilities (problems and executors)
+   */
+  getJudgeCapabilities(judgeId?: string): JudgeCapabilities | Map<string, JudgeCapabilities> {
+    if (judgeId) {
+      return this.judgeCapabilities.get(judgeId) || { problems: [], executors: {} };
+    }
+    return this.judgeCapabilities;
+  }
+
+  /**
+   * Get all available problems across all judges
+   */
+  getAvailableProblems(): string[] {
+    const allProblems = new Set<string>();
+    for (const capabilities of this.judgeCapabilities.values()) {
+      capabilities.problems.forEach(problem => allProblems.add(problem));
+    }
+    return Array.from(allProblems);
+  }
+
+  /**
+   * Get all available executors across all judges
+   */
+  getAvailableExecutors(): string[] {
+    const allExecutors = new Set<string>();
+    for (const capabilities of this.judgeCapabilities.values()) {
+      Object.keys(capabilities.executors).forEach(executor => allExecutors.add(executor));
+    }
+    return Array.from(allExecutors);
+  }
+
+  /**
+   * Check if a problem is available on any judge
+   */
+  isProblemAvailable(problemCode: string): boolean {
+    for (const capabilities of this.judgeCapabilities.values()) {
+      if (capabilities.problems.includes(problemCode)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Check if a language/executor is available on any judge
+   */
+  isExecutorAvailable(executor: string): boolean {
+    for (const capabilities of this.judgeCapabilities.values()) {
+      if (executor in capabilities.executors) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Disconnect from a judge
    */
   disconnectJudge(judgeId: string): void {
@@ -497,6 +572,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       socket.destroy();
       this.judgeConnections.delete(judgeId);
       this.authenticatedJudges.delete(judgeId);
+      this.judgeCapabilities.delete(judgeId); // Clean up capabilities
     }
   }
 
