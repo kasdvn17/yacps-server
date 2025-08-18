@@ -62,7 +62,7 @@ export class JudgeController {
   getJudgeCapabilities() {
     const capabilities = this.dmojBridge.getJudgeCapabilities();
     const connectedJudges = this.dmojBridge.getConnectedJudges();
-    
+
     // Convert Map to object for JSON serialization
     const capabilitiesObj: { [key: string]: any } = {};
     if (capabilities instanceof Map) {

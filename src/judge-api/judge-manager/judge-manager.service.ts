@@ -59,7 +59,7 @@ export class JudgeManagerService implements OnModuleInit {
       // Get available judges
       const availableJudges = await this.queueService.getAvailableJudges();
       const connectedJudges = availableJudges.filter((judge) =>
-        this.dmojBridge.isJudgeConnected(judge.id),
+        this.dmojBridge.isDatabaseJudgeConnected(judge.id),
       );
 
       this.logger.debug(`Available judges from DB: ${availableJudges.length}`);
@@ -72,7 +72,7 @@ export class JudgeManagerService implements OnModuleInit {
           `Available judges: ${availableJudges.map((j) => `${j.name}(${j.status})`).join(', ')}`,
         );
       }
-      
+
       if (connectedJudges.length === 0) {
         this.logger.debug('No available judges, skipping queue processing');
         return;
@@ -96,8 +96,23 @@ export class JudgeManagerService implements OnModuleInit {
           queueEntry.submission.problem.testEnvironments?.memoryLimit || 256,
       };
 
-      const success = this.dmojBridge.submitToJudge(
+      // Get the connection ID for this judge
+      const connectionId = this.dmojBridge.getConnectionIdForJudge(
         selectedJudge.id,
+      );
+      if (!connectionId) {
+        this.logger.error(
+          `No connection ID found for judge ${selectedJudge.name}`,
+        );
+        await this.queueService.failSubmission(
+          queueEntry.submission.id,
+          'Judge connection not found',
+        );
+        return;
+      }
+
+      const success = this.dmojBridge.submitToJudge(
+        connectionId,
         submissionData,
       );
 
@@ -120,14 +135,16 @@ export class JudgeManagerService implements OnModuleInit {
    * Handle judge authentication events
    */
   @OnEvent('judge.authenticated')
-  async handleJudgeAuthenticated(data: { 
-    connectionId: string; 
-    judgeId: string; 
-    judgeName: string; 
-    judge: any; 
-    data: any 
+  async handleJudgeAuthenticated(data: {
+    connectionId: string;
+    judgeId: string;
+    judgeName: string;
+    judge: any;
+    data: any;
   }) {
-    this.logger.log(`Judge ${data.judgeName} (${data.connectionId}) authenticated successfully`);
+    this.logger.log(
+      `Judge ${data.judgeName} (${data.connectionId}) authenticated successfully`,
+    );
 
     // Update judge last active time
     await this.prisma.judge.update({
