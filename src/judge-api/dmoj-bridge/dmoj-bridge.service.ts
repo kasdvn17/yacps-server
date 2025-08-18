@@ -527,7 +527,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
     this.eventEmitter.emit('submission.begin-grading', {
       judgeId,
       submissionId: data['submission-id'],
-      isPretest: data['is-pretest'],
+      isPretest: data.pretested || data['is-pretest'],
     });
   }
 
@@ -559,20 +559,42 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
 
   private handleTestCaseStatus(judgeId: string, data: any): void {
     this.logger.debug(`Test case status from judge ${judgeId}:`, data);
-    this.eventEmitter.emit('submission.test-case-status', {
-      judgeId,
-      submissionId: data['submission-id'],
-      caseNumber: data.case,
-      batchNumber: data.batch,
-      status: data.status,
-      time: data.time,
-      memory: data.memory,
-      points: data.points,
-      totalPoints: data['total-points'],
-      feedback: data.feedback,
-      output: data.output,
-      expected: data.expected,
-    });
+
+    // DMOJ sends test-case-status with a cases array containing multiple test cases
+    if (data.cases && Array.isArray(data.cases)) {
+      data.cases.forEach((testCase: any) => {
+        this.eventEmitter.emit('submission.test-case-status', {
+          judgeId,
+          submissionId: data['submission-id'],
+          caseNumber: testCase.position,
+          batchNumber: testCase.batch,
+          status: testCase.status,
+          time: testCase.time,
+          memory: testCase.memory,
+          points: testCase.points,
+          totalPoints: testCase['total-points'],
+          feedback: testCase.feedback || testCase['extended-feedback'] || '',
+          output: testCase.output,
+          expected: testCase.expected,
+        });
+      });
+    } else {
+      // Fallback for individual test case format (if it exists)
+      this.eventEmitter.emit('submission.test-case-status', {
+        judgeId,
+        submissionId: data['submission-id'],
+        caseNumber: data.case || data.position,
+        batchNumber: data.batch,
+        status: data.status,
+        time: data.time,
+        memory: data.memory,
+        points: data.points,
+        totalPoints: data['total-points'],
+        feedback: data.feedback || data['extended-feedback'] || '',
+        output: data.output,
+        expected: data.expected,
+      });
+    }
   }
 
   private handleSubmissionTerminated(judgeId: string, data: any): void {
