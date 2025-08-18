@@ -35,6 +35,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   private judgeConnections = new Map<string, net.Socket>();
   private authenticatedJudges = new Set<string>();
   private judgeCapabilities = new Map<string, JudgeCapabilities>();
+  private judgeIdToConnectionId = new Map<string, string>(); // database ID -> connection ID
   private tcpServer: net.Server;
   private readonly port: number;
 
@@ -111,6 +112,14 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       this.judgeConnections.delete(judgeId);
       this.authenticatedJudges.delete(judgeId);
       this.judgeCapabilities.delete(judgeId);
+
+      // Clean up the database ID mapping
+      for (const [dbId, connId] of this.judgeIdToConnectionId.entries()) {
+        if (connId === judgeId) {
+          this.judgeIdToConnectionId.delete(dbId);
+          break;
+        }
+      }
     });
 
     socket.on('error', (error) => {
@@ -130,12 +139,16 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
     this.logger.log(`🔌 Setting up socket handlers for judge ${judgeId}`);
 
     socket.on('data', (data) => {
-      this.logger.debug(`📥 Received ${data.length} bytes from judge ${judgeId}`);
+      this.logger.debug(
+        `📥 Received ${data.length} bytes from judge ${judgeId}`,
+      );
       buffer = Buffer.concat([buffer, data]);
 
       while (buffer.length >= 4) {
         const size = buffer.readUInt32BE(0);
-        this.logger.debug(`📊 Packet size: ${size}, buffer length: ${buffer.length}`);
+        this.logger.debug(
+          `📊 Packet size: ${size}, buffer length: ${buffer.length}`,
+        );
 
         if (buffer.length >= size + 4) {
           const packetData = buffer.slice(4, size + 4);
@@ -144,18 +157,27 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
           try {
             const decompressed = zlib.inflateSync(packetData);
             this.logger.debug(`📦 Decompressed packet successfully`);
-            this.logger.debug(`🔍 Raw decompressed data:`, decompressed.toString());
-            
+            this.logger.debug(
+              `🔍 Raw decompressed data:`,
+              decompressed.toString(),
+            );
+
             const packet: DMOJPacket = JSON.parse(decompressed.toString());
-            this.logger.debug(`🎯 Parsed packet:`, JSON.stringify(packet, null, 2));
-            
+            this.logger.debug(
+              `🎯 Parsed packet:`,
+              JSON.stringify(packet, null, 2),
+            );
+
             this.handlePacket(judgeId, packet);
           } catch (error) {
             this.logger.error(
               `❌ Failed to parse packet from judge ${judgeId}:`,
               error,
             );
-            this.logger.error(`Raw packet data (first 100 bytes):`, packetData.slice(0, 100));
+            this.logger.error(
+              `Raw packet data (first 100 bytes):`,
+              packetData.slice(0, 100),
+            );
           }
         } else {
           this.logger.debug(`⏳ Waiting for more data...`);
@@ -165,7 +187,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-    /**
+  /**
    * Handle incoming packets from judges
    */
   private handlePacket(judgeId: string, packet: DMOJPacket): void {
@@ -270,28 +292,37 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   private async handleHandshake(judgeId: string, data: any): Promise<void> {
     this.logger.log(`=== HANDSHAKE DEBUG START for ${judgeId} ===`);
     this.logger.log(`Handshake data received:`, JSON.stringify(data, null, 2));
-    
+
     try {
       const judgeName = data.id;
       const judgeKey = data.key;
 
       this.logger.log(`Judge name: ${judgeName}`);
-      this.logger.log(`Judge key (first 50 chars): ${judgeKey?.substring(0, 50)}...`);
+      this.logger.log(
+        `Judge key (first 50 chars): ${judgeKey?.substring(0, 50)}...`,
+      );
 
       if (!judgeName || !judgeKey) {
-        this.logger.error(`Missing judge name or key - name: ${judgeName}, key: ${!!judgeKey}`);
+        this.logger.error(
+          `Missing judge name or key - name: ${judgeName}, key: ${!!judgeKey}`,
+        );
         this.sendHandshakeFailure(judgeId, 'Missing judge name or key');
         return;
       }
 
       // Verify JWT token
-      this.logger.log(`Attempting JWT verification with secret: ${process.env.JWT_JUDGE_TOKEN?.substring(0, 10)}...`);
+      this.logger.log(
+        `Attempting JWT verification with secret: ${process.env.JWT_JUDGE_TOKEN?.substring(0, 10)}...`,
+      );
       let payload;
       try {
         payload = await this.jwtService.verifyAsync(judgeKey, {
           secret: process.env.JWT_JUDGE_TOKEN,
         });
-        this.logger.log(`JWT verification successful, payload:`, JSON.stringify(payload, null, 2));
+        this.logger.log(
+          `JWT verification successful, payload:`,
+          JSON.stringify(payload, null, 2),
+        );
       } catch (error) {
         this.logger.error(`JWT verification failed:`, error.message);
         this.logger.error(`JWT error details:`, error);
@@ -300,7 +331,9 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       }
 
       // Find judge in database
-      this.logger.log(`Looking up judge in database - name: ${judgeName}, token ID: ${payload.id}`);
+      this.logger.log(
+        `Looking up judge in database - name: ${judgeName}, token ID: ${payload.id}`,
+      );
       const judge = await this.prismaService.judge.findFirst({
         where: {
           name: judgeName,
@@ -316,14 +349,19 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
 
       if (!judge) {
         this.logger.error(`Judge not found in database or token mismatch`);
-        this.logger.error(`Search criteria: name=${judgeName}, tokenId=${payload.id}, createdAt=${payload.createdAt}`);
-        
+        this.logger.error(
+          `Search criteria: name=${judgeName}, tokenId=${payload.id}, createdAt=${payload.createdAt}`,
+        );
+
         // Debug: Show what judges exist
         const allJudges = await this.prismaService.judge.findMany({
           include: { token: true },
         });
-        this.logger.error(`Available judges:`, JSON.stringify(allJudges, null, 2));
-        
+        this.logger.error(
+          `Available judges:`,
+          JSON.stringify(allJudges, null, 2),
+        );
+
         this.sendHandshakeFailure(judgeId, 'Judge not found or invalid token');
         return;
       }
@@ -340,16 +378,21 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       this.logger.log(`🎉 Judge ${judgeName} authenticated successfully!`);
       this.authenticatedJudges.add(judgeId);
 
+      // Map database judge ID to connection ID
+      this.judgeIdToConnectionId.set(judge.id, judgeId);
+
       // Store judge capabilities
       const problems = (data.problems || []).map((p: any) => p[0]); // Extract problem names
       const executors = data.executors || {};
-      
+
       this.judgeCapabilities.set(judgeId, {
         problems,
         executors,
       });
 
-      this.logger.log(`Judge ${judgeName} capabilities: ${problems.length} problems, ${Object.keys(executors).length} executors`);
+      this.logger.log(
+        `Judge ${judgeName} capabilities: ${problems.length} problems, ${Object.keys(executors).length} executors`,
+      );
 
       // Update last active timestamp
       await this.prismaService.judge.update({
@@ -369,7 +412,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
         judge,
         data,
       });
-      
+
       this.logger.log(`=== HANDSHAKE DEBUG END for ${judgeId} ===`);
     } catch (error) {
       this.logger.error(`Handshake error for judge ${judgeId}:`, error);
@@ -501,6 +544,22 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Check if a database judge ID is connected (uses mapping)
+   */
+  isDatabaseJudgeConnected(databaseJudgeId: string): boolean {
+    const connectionId = this.judgeIdToConnectionId.get(databaseJudgeId);
+    if (!connectionId) return false;
+    return this.isJudgeConnected(connectionId);
+  }
+
+  /**
+   * Get connection ID for a database judge ID
+   */
+  getConnectionIdForJudge(databaseJudgeId: string): string | undefined {
+    return this.judgeIdToConnectionId.get(databaseJudgeId);
+  }
+
+  /**
    * Get all connected judges
    */
   getConnectedJudges(): string[] {
@@ -510,9 +569,13 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   /**
    * Get judge capabilities (problems and executors)
    */
-  getJudgeCapabilities(judgeId?: string): JudgeCapabilities | Map<string, JudgeCapabilities> {
+  getJudgeCapabilities(
+    judgeId?: string,
+  ): JudgeCapabilities | Map<string, JudgeCapabilities> {
     if (judgeId) {
-      return this.judgeCapabilities.get(judgeId) || { problems: [], executors: {} };
+      return (
+        this.judgeCapabilities.get(judgeId) || { problems: [], executors: {} }
+      );
     }
     return this.judgeCapabilities;
   }
@@ -523,7 +586,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   getAvailableProblems(): string[] {
     const allProblems = new Set<string>();
     for (const capabilities of this.judgeCapabilities.values()) {
-      capabilities.problems.forEach(problem => allProblems.add(problem));
+      capabilities.problems.forEach((problem) => allProblems.add(problem));
     }
     return Array.from(allProblems);
   }
@@ -534,7 +597,9 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   getAvailableExecutors(): string[] {
     const allExecutors = new Set<string>();
     for (const capabilities of this.judgeCapabilities.values()) {
-      Object.keys(capabilities.executors).forEach(executor => allExecutors.add(executor));
+      Object.keys(capabilities.executors).forEach((executor) =>
+        allExecutors.add(executor),
+      );
     }
     return Array.from(allExecutors);
   }
