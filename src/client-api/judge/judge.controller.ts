@@ -1,7 +1,7 @@
 import { Controller, Get, Param } from '@nestjs/common';
 import { DMOJBridgeService } from '@/judge-api/dmoj-bridge/dmoj-bridge.service';
 
-@Controller('client/judge')
+@Controller()
 export class JudgeController {
   constructor(private dmojBridge: DMOJBridgeService) {}
 
@@ -22,9 +22,7 @@ export class JudgeController {
    */
   @Get('problems')
   getAvailableProblems() {
-    return {
-      problems: this.dmojBridge.getAvailableProblems(),
-    };
+    return this.dmojBridge.getAvailableProblems();
   }
 
   /**
@@ -32,9 +30,7 @@ export class JudgeController {
    */
   @Get('executors')
   getAvailableExecutors() {
-    return {
-      executors: this.dmojBridge.getAvailableExecutors(),
-    };
+    return this.dmojBridge.getAvailableExecutors();
   }
 
   /**
