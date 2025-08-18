@@ -92,9 +92,10 @@ export class JudgeManagerService implements OnModuleInit {
         language: queueEntry.submission.language,
         source: queueEntry.submission.code,
         time_limit:
-          queueEntry.submission.problem.testEnvironments?.timeLimit || 1,
+          queueEntry.submission.problem.testEnvironments?.timeLimit || 1, // in seconds
         memory_limit:
-          queueEntry.submission.problem.testEnvironments?.memoryLimit || 256,
+          (queueEntry.submission.problem.testEnvironments?.memoryLimit || 256) *
+          1024, // convert MB to KB
       };
 
       // Get the connection ID for this judge by name
