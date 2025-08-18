@@ -72,8 +72,18 @@ export class JudgeManagerService implements OnModuleInit {
       // Select first available judge (simple approach)
       const selectedJudgeName = connectedJudgeNames[0];
 
-      // Assign submission to judge (we'll need to modify assignToJudge to accept name)
-      await this.queueService.assignToJudge(queueEntry.id, selectedJudgeName);
+      // Get the judge database record to get the ID for the queue assignment
+      const judgeRecord = await this.prisma.judge.findFirst({
+        where: { name: selectedJudgeName },
+      });
+
+      if (!judgeRecord) {
+        this.logger.error(`Judge ${selectedJudgeName} not found in database`);
+        return;
+      }
+
+      // Assign submission to judge (using database ID for foreign key constraint)
+      await this.queueService.assignToJudge(queueEntry.id, judgeRecord.id);
 
       // Send submission to DMOJ bridge
       const submissionData = {
