@@ -18,7 +18,7 @@ import { CreateSubmissionDTO, SubmissionQueryDTO } from './dto/submission.dto';
 import { Request } from 'express';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
-@Controller('submissions')
+@Controller()
 @UseGuards(AuthGuard)
 export class SubmissionsController {
   private readonly logger = new Logger(SubmissionsController.name);
