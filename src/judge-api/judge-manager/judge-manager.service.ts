@@ -26,7 +26,7 @@ export class JudgeManagerService implements OnModuleInit {
   }
 
   /**
-   * Connect to all active judges
+   * Initialize judge connections (now passive - judges connect to us)
    */
   async connectToAllJudges(): Promise<void> {
     const judges = await this.prisma.judge.findMany({
@@ -36,16 +36,12 @@ export class JudgeManagerService implements OnModuleInit {
       },
     });
 
-    this.logger.log(`Connecting to ${judges.length} judges...`);
+    this.logger.log(
+      `Found ${judges.length} active judges. They should connect to our TCP server.`,
+    );
 
-    for (const judge of judges) {
-      try {
-        await this.dmojBridge.connectToJudge(judge);
-        this.logger.log(`Successfully connected to judge ${judge.name}`);
-      } catch (error) {
-        this.logger.error(`Failed to connect to judge ${judge.name}:`, error);
-      }
-    }
+    // No longer actively connecting - judges connect to our TCP server
+    // The DMOJ bridge service will handle incoming connections
   }
 
   /**

@@ -1,9 +1,13 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { JwtService } from '@nestjs/jwt';
 import * as net from 'net';
 import * as zlib from 'zlib';
-import { Judge } from '@prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 
 interface DMOJPacket {
@@ -21,52 +25,91 @@ interface DMOJSubmissionData {
 }
 
 @Injectable()
-export class DMOJBridgeService {
+export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DMOJBridgeService.name);
   private judgeConnections = new Map<string, net.Socket>();
   private authenticatedJudges = new Set<string>();
+  private tcpServer: net.Server;
+  private readonly port: number;
 
   constructor(
     private eventEmitter: EventEmitter2,
     private jwtService: JwtService,
     private prismaService: PrismaService,
-  ) {}
+  ) {
+    // Use JUDGE_PORT environment variable, default to 9999
+    this.port = parseInt(process.env.JUDGE_PORT || '9999', 10);
+  }
+
+  async onModuleInit() {
+    await this.startTcpServer();
+  }
+
+  async onModuleDestroy() {
+    await this.stopTcpServer();
+  }
 
   /**
-   * Connect to a DMOJ judge server
+   * Start TCP server to listen for incoming judge connections
    */
-  connectToJudge(judge: Judge): Promise<boolean> {
+  private async startTcpServer(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.tcpServer = net.createServer((socket) => {
+        this.handleJudgeConnection(socket);
+      });
+
+      this.tcpServer.listen(this.port, '0.0.0.0', () => {
+        this.logger.log(`DMOJ Judge server listening on port ${this.port}`);
+        resolve();
+      });
+
+      this.tcpServer.on('error', (error) => {
+        this.logger.error(`TCP Server error:`, error);
+        reject(error);
+      });
+    });
+  }
+
+  /**
+   * Stop TCP server
+   */
+  private async stopTcpServer(): Promise<void> {
     return new Promise((resolve) => {
-      try {
-        const socket = new net.Socket();
-
-        socket.connect(9999, judge.host, () => {
-          this.logger.log(
-            `Connected to judge ${judge.name} at ${judge.host}:9999`,
-          );
-          this.judgeConnections.set(judge.id, socket);
-          this.setupSocketHandlers(judge.id, socket);
-
-          // Note: Authentication happens when judge sends handshake packet with JWT token
-          resolve(true);
+      if (this.tcpServer) {
+        this.tcpServer.close(() => {
+          this.logger.log('DMOJ Judge server stopped');
+          resolve();
         });
-
-        socket.on('error', (error) => {
-          this.logger.error(`Connection error for judge ${judge.name}:`, error);
-          this.judgeConnections.delete(judge.id);
-          this.authenticatedJudges.delete(judge.id);
-          resolve(false);
-        });
-
-        socket.on('close', () => {
-          this.logger.warn(`Connection closed for judge ${judge.name}`);
-          this.judgeConnections.delete(judge.id);
-          this.authenticatedJudges.delete(judge.id);
-        });
-      } catch (error) {
-        this.logger.error(`Failed to connect to judge ${judge.name}:`, error);
-        resolve(false);
+      } else {
+        resolve();
       }
+    });
+  }
+
+  /**
+   * Handle incoming judge connection
+   */
+  private handleJudgeConnection(socket: net.Socket): void {
+    const judgeId = `judge_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const remoteAddress = `${socket.remoteAddress}:${socket.remotePort}`;
+
+    this.logger.log(
+      `New judge connection from ${remoteAddress} (ID: ${judgeId})`,
+    );
+
+    this.judgeConnections.set(judgeId, socket);
+    this.setupSocketHandlers(judgeId, socket);
+
+    socket.on('close', () => {
+      this.logger.log(`Judge ${judgeId} disconnected`);
+      this.judgeConnections.delete(judgeId);
+      this.authenticatedJudges.delete(judgeId);
+    });
+
+    socket.on('error', (error) => {
+      this.logger.error(`Judge ${judgeId} connection error:`, error);
+      this.judgeConnections.delete(judgeId);
+      this.authenticatedJudges.delete(judgeId);
     });
   }
 
