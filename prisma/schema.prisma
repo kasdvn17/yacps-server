@@ -197,6 +197,7 @@ enum SubmissionVerdict {
   TLE // Time limit exceeded
   MLE // Memory limit exceeded
   ISE // Internal Server Error
+  SK // Skipped
 }
 
 model Category {
