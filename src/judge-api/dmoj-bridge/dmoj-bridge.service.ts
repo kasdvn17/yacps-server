@@ -276,25 +276,69 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       return false;
     }
 
-    return this.sendPacket(judgeId, 'submission-request', {
-      'submission-id': submission.id,
-      'problem-id': submission.problem,
-      language: submission.language,
-      source: submission.source,
-      'time-limit': submission.time_limit,
-      'memory-limit': submission.memory_limit,
-      'short-circuit': false, // Don't short circuit on first wrong answer
-      meta: {}, // Additional metadata
-    });
+    // For submission-request, DMOJ expects the fields at root level, not in data
+    const socket = this.judgeConnections.get(judgeId);
+    if (!socket) {
+      this.logger.error(`No connection to judge ${judgeId}`);
+      return false;
+    }
+
+    try {
+      const packet = {
+        name: 'submission-request',
+        'submission-id': submission.id,
+        'problem-id': submission.problem,
+        language: submission.language,
+        source: submission.source,
+        'time-limit': submission.time_limit,
+        'memory-limit': submission.memory_limit,
+        'short-circuit': false,
+        meta: {},
+      };
+
+      const jsonData = JSON.stringify(packet);
+      const compressed = zlib.deflateSync(Buffer.from(jsonData));
+      const size = Buffer.allocUnsafe(4);
+      size.writeUInt32BE(compressed.length, 0);
+
+      socket.write(Buffer.concat([size, compressed]));
+      return true;
+    } catch (error) {
+      this.logger.error(
+        `Failed to send submission to judge ${judgeId}:`,
+        error,
+      );
+      return false;
+    }
   }
 
   /**
    * Abort a submission
    */
   abortSubmission(judgeId: string, submissionId: number): boolean {
-    return this.sendPacket(judgeId, 'terminate-submission', {
-      'submission-id': submissionId,
-    });
+    const socket = this.judgeConnections.get(judgeId);
+    if (!socket) {
+      this.logger.error(`No connection to judge ${judgeId}`);
+      return false;
+    }
+
+    try {
+      const packet = {
+        name: 'terminate-submission',
+        'submission-id': submissionId,
+      };
+
+      const jsonData = JSON.stringify(packet);
+      const compressed = zlib.deflateSync(Buffer.from(jsonData));
+      const size = Buffer.allocUnsafe(4);
+      size.writeUInt32BE(compressed.length, 0);
+
+      socket.write(Buffer.concat([size, compressed]));
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to abort submission ${submissionId}:`, error);
+      return false;
+    }
   }
 
   // Packet handlers
