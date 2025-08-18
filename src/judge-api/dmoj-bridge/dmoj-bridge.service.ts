@@ -214,6 +214,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
         this.handleCompileMessage(judgeId, packet.data);
         break;
       case 'begin-grading':
+      case 'grading-begin':
         this.handleBeginGrading(judgeId, packet.data);
         break;
       case 'grading-end':
@@ -507,7 +508,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
     this.logger.debug(`Compile error from judge ${judgeId}:`, data);
     this.eventEmitter.emit('submission.compile-error', {
       judgeId,
-      submissionId: data.submission_id,
+      submissionId: data['submission-id'],
       error: data.log,
     });
   }
@@ -516,7 +517,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
     this.logger.debug(`Compile message from judge ${judgeId}:`, data);
     this.eventEmitter.emit('submission.compile-message', {
       judgeId,
-      submissionId: data.submission_id,
+      submissionId: data['submission-id'],
       message: data.log,
     });
   }
@@ -525,8 +526,8 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
     this.logger.debug(`Begin grading from judge ${judgeId}:`, data);
     this.eventEmitter.emit('submission.begin-grading', {
       judgeId,
-      submissionId: data.submission_id,
-      isPretest: data.is_pretest,
+      submissionId: data['submission-id'],
+      isPretest: data['is-pretest'],
     });
   }
 
@@ -534,7 +535,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
     this.logger.debug(`Grading end from judge ${judgeId}:`, data);
     this.eventEmitter.emit('submission.grading-end', {
       judgeId,
-      submissionId: data.submission_id,
+      submissionId: data['submission-id'],
     });
   }
 
@@ -542,8 +543,8 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
     this.logger.debug(`Batch begin from judge ${judgeId}:`, data);
     this.eventEmitter.emit('submission.batch-begin', {
       judgeId,
-      submissionId: data.submission_id,
-      batchNumber: data.batch_no,
+      submissionId: data['submission-id'],
+      batchNumber: data['batch-no'],
     });
   }
 
@@ -551,8 +552,8 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
     this.logger.debug(`Batch end from judge ${judgeId}:`, data);
     this.eventEmitter.emit('submission.batch-end', {
       judgeId,
-      submissionId: data.submission_id,
-      batchNumber: data.batch_no,
+      submissionId: data['submission-id'],
+      batchNumber: data['batch-no'],
     });
   }
 
@@ -560,14 +561,14 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
     this.logger.debug(`Test case status from judge ${judgeId}:`, data);
     this.eventEmitter.emit('submission.test-case-status', {
       judgeId,
-      submissionId: data.submission_id,
+      submissionId: data['submission-id'],
       caseNumber: data.case,
       batchNumber: data.batch,
       status: data.status,
       time: data.time,
       memory: data.memory,
       points: data.points,
-      totalPoints: data.total_points,
+      totalPoints: data['total-points'],
       feedback: data.feedback,
       output: data.output,
       expected: data.expected,
@@ -578,7 +579,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
     this.logger.debug(`Submission terminated from judge ${judgeId}:`, data);
     this.eventEmitter.emit('submission.terminated', {
       judgeId,
-      submissionId: data.submission_id,
+      submissionId: data['submission-id'],
     });
   }
 
@@ -586,7 +587,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
     this.logger.debug(`Submission aborted from judge ${judgeId}:`, data);
     this.eventEmitter.emit('submission.aborted', {
       judgeId,
-      submissionId: data.submission_id,
+      submissionId: data['submission-id'],
     });
   }
 
