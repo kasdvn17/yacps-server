@@ -564,8 +564,18 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
    */
   isDatabaseJudgeConnected(databaseJudgeId: string): boolean {
     const connectionId = this.judgeIdToConnectionId.get(databaseJudgeId);
-    if (!connectionId) return false;
-    return this.isJudgeConnected(connectionId);
+    const isConnected = connectionId
+      ? this.isJudgeConnected(connectionId)
+      : false;
+
+    this.logger.debug(
+      `Check judge connection: DB ID ${databaseJudgeId} -> Connection ID ${connectionId} -> Connected: ${isConnected}`,
+    );
+    this.logger.debug(
+      `Judge mapping has: ${Array.from(this.judgeIdToConnectionId.keys()).join(', ')}`,
+    );
+
+    return isConnected;
   }
 
   /**

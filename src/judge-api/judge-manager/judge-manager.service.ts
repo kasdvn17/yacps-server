@@ -58,9 +58,13 @@ export class JudgeManagerService implements OnModuleInit {
 
       // Get available judges
       const availableJudges = await this.queueService.getAvailableJudges();
-      const connectedJudges = availableJudges.filter((judge) =>
-        this.dmojBridge.isDatabaseJudgeConnected(judge.id),
-      );
+      const connectedJudges = availableJudges.filter((judge) => {
+        const isConnected = this.dmojBridge.isDatabaseJudgeConnected(judge.id);
+        this.logger.debug(
+          `Judge ${judge.name} (ID: ${judge.id}) connected: ${isConnected}`,
+        );
+        return isConnected;
+      });
 
       this.logger.debug(`Available judges from DB: ${availableJudges.length}`);
       this.logger.debug(
