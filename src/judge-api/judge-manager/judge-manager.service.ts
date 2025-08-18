@@ -56,37 +56,24 @@ export class JudgeManagerService implements OnModuleInit {
         return;
       }
 
-      // Get available judges
-      const availableJudges = await this.queueService.getAvailableJudges();
-      const connectedJudges = availableJudges.filter((judge) => {
-        const isConnected = this.dmojBridge.isJudgeNameConnected(judge.name);
-        this.logger.debug(
-          `Judge ${judge.name} (ID: ${judge.id}) connected: ${isConnected}`,
-        );
-        return isConnected;
-      });
+      // Get connected judges directly from DMOJ bridge (no database check needed)
+      const connectedJudgeNames = this.dmojBridge.getConnectedJudgeNames();
 
-      this.logger.debug(`Available judges from DB: ${availableJudges.length}`);
       this.logger.debug(
-        `Connected judges from DMOJ: ${connectedJudges.length}`,
+        `Connected judges from DMOJ: ${connectedJudgeNames.length}`,
       );
+      this.logger.debug(`Connected judges: ${connectedJudgeNames.join(', ')}`);
 
-      if (availableJudges.length > 0) {
-        this.logger.debug(
-          `Available judges: ${availableJudges.map((j) => `${j.name}(${j.status})`).join(', ')}`,
-        );
-      }
-
-      if (connectedJudges.length === 0) {
-        this.logger.debug('No available judges, skipping queue processing');
+      if (connectedJudgeNames.length === 0) {
+        this.logger.debug('No connected judges, skipping queue processing');
         return;
       }
 
-      // Select a judge (simple round-robin for now)
-      const selectedJudge = connectedJudges[0];
+      // Select first available judge (simple approach)
+      const selectedJudgeName = connectedJudgeNames[0];
 
-      // Assign submission to judge
-      await this.queueService.assignToJudge(queueEntry.id, selectedJudge.id);
+      // Assign submission to judge (we'll need to modify assignToJudge to accept name)
+      await this.queueService.assignToJudge(queueEntry.id, selectedJudgeName);
 
       // Send submission to DMOJ bridge
       const submissionData = {
@@ -101,12 +88,11 @@ export class JudgeManagerService implements OnModuleInit {
       };
 
       // Get the connection ID for this judge by name
-      const connectionId = this.dmojBridge.getConnectionIdForJudgeName(
-        selectedJudge.name,
-      );
+      const connectionId =
+        this.dmojBridge.getConnectionIdForJudgeName(selectedJudgeName);
       if (!connectionId) {
         this.logger.error(
-          `No connection ID found for judge ${selectedJudge.name}`,
+          `No connection ID found for judge ${selectedJudgeName}`,
         );
         await this.queueService.failSubmission(
           queueEntry.submission.id,
@@ -127,7 +113,7 @@ export class JudgeManagerService implements OnModuleInit {
         );
       } else {
         this.logger.log(
-          `Submission ${queueEntry.submission.id} sent to judge ${selectedJudge.name}`,
+          `Submission ${queueEntry.submission.id} sent to judge ${selectedJudgeName}`,
         );
       }
     } catch (error) {
