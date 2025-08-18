@@ -135,8 +135,12 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
 
           try {
             const decompressed = zlib.inflateSync(packetData);
-            const packet: DMOJPacket = JSON.parse(decompressed.toString());
             this.logger.debug(`📦 Decompressed packet successfully`);
+            this.logger.debug(`🔍 Raw decompressed data:`, decompressed.toString());
+            
+            const packet: DMOJPacket = JSON.parse(decompressed.toString());
+            this.logger.debug(`🎯 Parsed packet:`, JSON.stringify(packet, null, 2));
+            
             this.handlePacket(judgeId, packet);
           } catch (error) {
             this.logger.error(
@@ -153,16 +157,18 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  /**
+    /**
    * Handle incoming packets from judges
    */
   private handlePacket(judgeId: string, packet: DMOJPacket): void {
-    this.logger.debug(`📦 Received packet from judge ${judgeId}: ${packet.name}`);
-    this.logger.debug(`Packet data:`, JSON.stringify(packet.data, null, 2));
+    this.logger.debug(
+      `📦 Received packet from judge ${judgeId}: ${packet.name}`,
+    );
+    this.logger.debug(`Full packet:`, JSON.stringify(packet, null, 2));
 
     switch (packet.name) {
       case 'handshake':
-        void this.handleHandshake(judgeId, packet.data);
+        void this.handleHandshake(judgeId, packet);
         break;
       case 'supported-problems':
         this.handleSupportedProblems(judgeId, packet.data);
