@@ -10,6 +10,8 @@ import {
   UseGuards,
   BadRequestException,
   ForbiddenException,
+  Param,
+  NotFoundException,
 } from '@nestjs/common';
 import { CreateUserDTO } from './users.dto';
 import { UsersService } from './users.service';
@@ -155,5 +157,101 @@ export class UsersController {
     delete response.password;
     delete response.isDeleted;
     return response;
+  }
+
+  @Get('/details/:username')
+  @Public()
+  async getUserDetails(@Param('username') username: string) {
+    try {
+      // Find the user by username
+      const user = await this.usersService.findUser({ username }, false, false);
+
+      if (!user) {
+        throw new NotFoundException('USER_NOT_FOUND');
+      }
+
+      // Get user submissions with problem and author details
+      const submissions = await this.prismaService.submission.findMany({
+        where: {
+          authorId: user.id,
+        },
+        include: {
+          problem: {
+            select: {
+              id: true,
+              slug: true,
+              name: true,
+              points: true,
+              category: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      // Calculate total points from submissions
+      const totalPoints = submissions.reduce((sum, submission) => {
+        return sum + (submission.points || 0);
+      }, 0);
+
+      // Calculate user rank by points (simplified - could be optimized)
+      // Since we don't have a totalPoints field, we need to calculate it for all users
+      const allUsers = await this.prismaService.user.findMany({
+        where: {
+          isDeleted: false,
+        },
+        include: {
+          submissions: {
+            select: {
+              points: true,
+            },
+          },
+        },
+      });
+
+      const usersWithPoints = allUsers.map((u) => ({
+        id: u.id,
+        totalPoints: u.submissions.reduce(
+          (sum, sub) => sum + (sub.points || 0),
+          0,
+        ),
+      }));
+
+      const usersWithMorePoints = usersWithPoints.filter(
+        (u) => u.totalPoints > totalPoints,
+      );
+      const userRank = usersWithMorePoints.length + 1;
+
+      // Transform submissions to match frontend interface
+      const transformedSubmissions = submissions.map((submission) => ({
+        problemCode: submission.problem.slug,
+        problemName: submission.problem.name,
+        problemCategory: submission.problem.category?.name || 'Uncategorized',
+        status: submission.verdict || 'QU',
+        points: submission.points || 0,
+        language: submission.language,
+        timestamp: submission.createdAt.getTime(),
+      }));
+
+      return {
+        totalPoints,
+        rankByPoints: userRank,
+        submissions: transformedSubmissions,
+        bio: '', // User model doesn't have bio field
+        avatarURL: '', // User model doesn't have avatarURL field
+      };
+    } catch (err) {
+      if (err instanceof NotFoundException) {
+        throw err;
+      }
+      this.logger.error(err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+    }
   }
 }
