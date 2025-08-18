@@ -119,11 +119,15 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   private setupSocketHandlers(judgeId: string, socket: net.Socket): void {
     let buffer = Buffer.alloc(0);
 
+    this.logger.log(`🔌 Setting up socket handlers for judge ${judgeId}`);
+
     socket.on('data', (data) => {
+      this.logger.debug(`📥 Received ${data.length} bytes from judge ${judgeId}`);
       buffer = Buffer.concat([buffer, data]);
 
       while (buffer.length >= 4) {
         const size = buffer.readUInt32BE(0);
+        this.logger.debug(`📊 Packet size: ${size}, buffer length: ${buffer.length}`);
 
         if (buffer.length >= size + 4) {
           const packetData = buffer.slice(4, size + 4);
@@ -132,14 +136,17 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
           try {
             const decompressed = zlib.inflateSync(packetData);
             const packet: DMOJPacket = JSON.parse(decompressed.toString());
+            this.logger.debug(`📦 Decompressed packet successfully`);
             this.handlePacket(judgeId, packet);
           } catch (error) {
             this.logger.error(
-              `Failed to parse packet from judge ${judgeId}:`,
+              `❌ Failed to parse packet from judge ${judgeId}:`,
               error,
             );
+            this.logger.error(`Raw packet data (first 100 bytes):`, packetData.slice(0, 100));
           }
         } else {
+          this.logger.debug(`⏳ Waiting for more data...`);
           break;
         }
       }
@@ -150,7 +157,8 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
    * Handle incoming packets from judges
    */
   private handlePacket(judgeId: string, packet: DMOJPacket): void {
-    this.logger.debug(`Received packet from judge ${judgeId}:`, packet.name);
+    this.logger.debug(`📦 Received packet from judge ${judgeId}: ${packet.name}`);
+    this.logger.debug(`Packet data:`, JSON.stringify(packet.data, null, 2));
 
     switch (packet.name) {
       case 'handshake':
@@ -187,7 +195,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
         this.handleSubmissionAborted(judgeId, packet.data);
         break;
       default:
-        this.logger.warn(`Unknown packet type: ${packet.name}`);
+        this.logger.warn(`❓ Unknown packet type: ${packet.name}`);
     }
   }
 
@@ -246,29 +254,39 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
 
   // Packet handlers
   private async handleHandshake(judgeId: string, data: any): Promise<void> {
+    this.logger.log(`=== HANDSHAKE DEBUG START for ${judgeId} ===`);
+    this.logger.log(`Handshake data received:`, JSON.stringify(data, null, 2));
+    
     try {
       const judgeName = data.id;
       const judgeKey = data.key;
 
+      this.logger.log(`Judge name: ${judgeName}`);
+      this.logger.log(`Judge key (first 50 chars): ${judgeKey?.substring(0, 50)}...`);
+
       if (!judgeName || !judgeKey) {
-        this.logger.error(`Judge ${judgeId} sent invalid handshake data`);
+        this.logger.error(`Missing judge name or key - name: ${judgeName}, key: ${!!judgeKey}`);
         this.sendHandshakeFailure(judgeId, 'Missing judge name or key');
         return;
       }
 
       // Verify JWT token
+      this.logger.log(`Attempting JWT verification with secret: ${process.env.JWT_JUDGE_TOKEN?.substring(0, 10)}...`);
       let payload;
       try {
         payload = await this.jwtService.verifyAsync(judgeKey, {
           secret: process.env.JWT_JUDGE_TOKEN,
         });
+        this.logger.log(`JWT verification successful, payload:`, JSON.stringify(payload, null, 2));
       } catch (error) {
-        this.logger.error(`Judge ${judgeId} JWT verification failed:`, error);
+        this.logger.error(`JWT verification failed:`, error.message);
+        this.logger.error(`JWT error details:`, error);
         this.sendHandshakeFailure(judgeId, 'Invalid authentication token');
         return;
       }
 
       // Find judge in database
+      this.logger.log(`Looking up judge in database - name: ${judgeName}, token ID: ${payload.id}`);
       const judge = await this.prismaService.judge.findFirst({
         where: {
           name: judgeName,
@@ -277,12 +295,21 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
             createdAt: payload.createdAt,
           },
         },
+        include: {
+          token: true,
+        },
       });
 
       if (!judge) {
-        this.logger.error(
-          `Judge ${judgeName} not found in database or token mismatch`,
-        );
+        this.logger.error(`Judge not found in database or token mismatch`);
+        this.logger.error(`Search criteria: name=${judgeName}, tokenId=${payload.id}, createdAt=${payload.createdAt}`);
+        
+        // Debug: Show what judges exist
+        const allJudges = await this.prismaService.judge.findMany({
+          include: { token: true },
+        });
+        this.logger.error(`Available judges:`, JSON.stringify(allJudges, null, 2));
+        
         this.sendHandshakeFailure(judgeId, 'Judge not found or invalid token');
         return;
       }
@@ -296,7 +323,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       }
 
       // Authentication successful
-      this.logger.log(`Judge ${judgeName} authenticated successfully`);
+      this.logger.log(`🎉 Judge ${judgeName} authenticated successfully!`);
       this.authenticatedJudges.add(judgeId);
 
       // Update last active timestamp
@@ -306,6 +333,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       });
 
       // Send handshake success response
+      this.logger.log(`Sending handshake success to ${judgeId}`);
       this.sendHandshakeSuccess(judgeId);
 
       // Emit event for successful authentication
@@ -314,8 +342,11 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
         judgeName,
         data,
       });
+      
+      this.logger.log(`=== HANDSHAKE DEBUG END for ${judgeId} ===`);
     } catch (error) {
       this.logger.error(`Handshake error for judge ${judgeId}:`, error);
+      this.logger.error(`Error stack:`, error.stack);
       this.sendHandshakeFailure(judgeId, 'Internal server error');
     }
   }
