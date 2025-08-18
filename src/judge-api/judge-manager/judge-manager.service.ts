@@ -59,7 +59,7 @@ export class JudgeManagerService implements OnModuleInit {
       // Get available judges
       const availableJudges = await this.queueService.getAvailableJudges();
       const connectedJudges = availableJudges.filter((judge) => {
-        const isConnected = this.dmojBridge.isDatabaseJudgeConnected(judge.id);
+        const isConnected = this.dmojBridge.isJudgeNameConnected(judge.name);
         this.logger.debug(
           `Judge ${judge.name} (ID: ${judge.id}) connected: ${isConnected}`,
         );
@@ -100,9 +100,9 @@ export class JudgeManagerService implements OnModuleInit {
           queueEntry.submission.problem.testEnvironments?.memoryLimit || 256,
       };
 
-      // Get the connection ID for this judge
-      const connectionId = this.dmojBridge.getConnectionIdForJudge(
-        selectedJudge.id,
+      // Get the connection ID for this judge by name
+      const connectionId = this.dmojBridge.getConnectionIdForJudgeName(
+        selectedJudge.name,
       );
       if (!connectionId) {
         this.logger.error(
