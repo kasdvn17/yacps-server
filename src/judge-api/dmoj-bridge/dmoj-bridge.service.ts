@@ -35,7 +35,8 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   private judgeConnections = new Map<string, net.Socket>();
   private authenticatedJudges = new Set<string>();
   private judgeCapabilities = new Map<string, JudgeCapabilities>();
-  private judgeIdToConnectionId = new Map<string, string>(); // database ID -> connection ID
+  private connectedJudgeNames = new Set<string>(); // Simple set of connected judge names
+  private connectionIdToJudgeName = new Map<string, string>(); // connection ID -> judge name
   private tcpServer: net.Server;
   private readonly port: number;
 
@@ -109,17 +110,20 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
 
     socket.on('close', () => {
       this.logger.log(`Judge ${judgeId} disconnected`);
+
+      // Get judge name and remove from connected set
+      const judgeName = this.connectionIdToJudgeName.get(judgeId);
+      if (judgeName) {
+        this.connectedJudgeNames.delete(judgeName);
+        this.connectionIdToJudgeName.delete(judgeId);
+        this.logger.log(
+          `Removed ${judgeName} from connected judges. Total connected: ${this.connectedJudgeNames.size}`,
+        );
+      }
+
       this.judgeConnections.delete(judgeId);
       this.authenticatedJudges.delete(judgeId);
       this.judgeCapabilities.delete(judgeId);
-
-      // Clean up the database ID mapping
-      for (const [dbId, connId] of this.judgeIdToConnectionId.entries()) {
-        if (connId === judgeId) {
-          this.judgeIdToConnectionId.delete(dbId);
-          break;
-        }
-      }
     });
 
     socket.on('error', (error) => {
@@ -383,8 +387,12 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       this.logger.log(`🎉 Judge ${judgeName} authenticated successfully!`);
       this.authenticatedJudges.add(judgeId);
 
-      // Map database judge ID to connection ID
-      this.judgeIdToConnectionId.set(judge.id, judgeId);
+      // Add judge name to connected judges set - this is what we'll check for availability
+      this.connectedJudgeNames.add(judgeName);
+      this.connectionIdToJudgeName.set(judgeId, judgeName);
+      this.logger.log(
+        `Added ${judgeName} to connected judges. Total connected: ${this.connectedJudgeNames.size}`,
+      );
 
       // Store judge capabilities
       const problems = (data.problems || []).map((p: any) => p[0]); // Extract problem names
@@ -560,29 +568,29 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Check if a database judge ID is connected (uses mapping)
+   * Check if a judge name is connected
    */
-  isDatabaseJudgeConnected(databaseJudgeId: string): boolean {
-    const connectionId = this.judgeIdToConnectionId.get(databaseJudgeId);
-    const isConnected = connectionId
-      ? this.isJudgeConnected(connectionId)
-      : false;
-
-    this.logger.debug(
-      `Check judge connection: DB ID ${databaseJudgeId} -> Connection ID ${connectionId} -> Connected: ${isConnected}`,
-    );
-    this.logger.debug(
-      `Judge mapping has: ${Array.from(this.judgeIdToConnectionId.keys()).join(', ')}`,
-    );
-
-    return isConnected;
+  isJudgeNameConnected(judgeName: string): boolean {
+    return this.connectedJudgeNames.has(judgeName);
   }
 
   /**
-   * Get connection ID for a database judge ID
+   * Get all connected judge names
    */
-  getConnectionIdForJudge(databaseJudgeId: string): string | undefined {
-    return this.judgeIdToConnectionId.get(databaseJudgeId);
+  getConnectedJudgeNames(): string[] {
+    return Array.from(this.connectedJudgeNames);
+  }
+
+  /**
+   * Get connection ID for a judge name
+   */
+  getConnectionIdForJudgeName(judgeName: string): string | undefined {
+    for (const [connectionId, name] of this.connectionIdToJudgeName.entries()) {
+      if (name === judgeName) {
+        return connectionId;
+      }
+    }
+    return undefined;
   }
 
   /**
