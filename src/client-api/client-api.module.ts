@@ -6,6 +6,7 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { ProblemsModule } from './problems/problems.module';
 import { SubmissionsModule } from './submissions/submissions.module';
+import { JudgeModule } from './judge/judge.module';
 import { PrismaModule } from '@/prisma/prisma.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { getRealIp } from './utils';
@@ -20,6 +21,7 @@ import { getRealIp } from './utils';
     UsersModule,
     ProblemsModule,
     SubmissionsModule,
+    JudgeModule,
     PrismaModule,
     ThrottlerModule.forRoot([
       {
@@ -44,6 +46,10 @@ import { getRealIp } from './utils';
       {
         path: '/client/submissions',
         module: SubmissionsModule,
+      },
+      {
+        path: '/client/judge',
+        module: JudgeModule,
       },
     ]),
   ],
