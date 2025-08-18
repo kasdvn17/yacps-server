@@ -1,8 +1,8 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
+import { OnEvent, EventEmitter2 } from '@nestjs/event-emitter';
 import { SubmissionQueueService } from '../submission-queue/submission-queue.service';
 import { DMOJBridgeService } from '../dmoj-bridge/dmoj-bridge.service';
-import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { SubmissionVerdict } from '@prisma/client';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
@@ -109,8 +109,14 @@ export class JudgeManagerService implements OnModuleInit {
    * Handle judge authentication events
    */
   @OnEvent('judge.authenticated')
-  async handleJudgeAuthenticated(data: { judgeId: string; data: any }) {
-    this.logger.log(`Judge ${data.judgeId} authenticated successfully`);
+  async handleJudgeAuthenticated(data: { 
+    connectionId: string; 
+    judgeId: string; 
+    judgeName: string; 
+    judge: any; 
+    data: any 
+  }) {
+    this.logger.log(`Judge ${data.judgeName} (${data.connectionId}) authenticated successfully`);
 
     // Update judge last active time
     await this.prisma.judge.update({
@@ -121,6 +127,8 @@ export class JudgeManagerService implements OnModuleInit {
     // Emit event for WebSocket clients
     this.eventEmitter.emit('judge.status-update', {
       judgeId: data.judgeId,
+      judgeName: data.judgeName,
+      connectionId: data.connectionId,
       status: 'connected',
       timestamp: new Date(),
     });

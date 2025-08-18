@@ -344,8 +344,10 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
 
       // Emit event for successful authentication
       this.eventEmitter.emit('judge.authenticated', {
-        judgeId,
+        connectionId: judgeId,
+        judgeId: judge.id,
         judgeName,
+        judge,
         data,
       });
       
