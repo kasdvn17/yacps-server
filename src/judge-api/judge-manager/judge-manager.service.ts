@@ -62,6 +62,17 @@ export class JudgeManagerService implements OnModuleInit {
         this.dmojBridge.isJudgeConnected(judge.id),
       );
 
+      this.logger.debug(`Available judges from DB: ${availableJudges.length}`);
+      this.logger.debug(
+        `Connected judges from DMOJ: ${connectedJudges.length}`,
+      );
+
+      if (availableJudges.length > 0) {
+        this.logger.debug(
+          `Available judges: ${availableJudges.map((j) => `${j.name}(${j.status})`).join(', ')}`,
+        );
+      }
+      
       if (connectedJudges.length === 0) {
         this.logger.debug('No available judges, skipping queue processing');
         return;
