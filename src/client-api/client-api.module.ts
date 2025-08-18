@@ -1,17 +1,17 @@
 import { Module } from '@nestjs/common';
-import { SubmissionsController } from '@/client-api/submissions/submissions.controller';
 import { ContestsController } from '@/client-api/contests/contests.controller';
 import { SessionsModule } from './sessions/sessions.module';
 import { RouterModule } from '@nestjs/core';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { ProblemsModule } from './problems/problems.module';
+import { SubmissionsModule } from './submissions/submissions.module';
 import { PrismaModule } from '@/prisma/prisma.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { getRealIp } from './utils';
 
 @Module({
-  controllers: [SubmissionsController, ContestsController],
+  controllers: [ContestsController],
   providers: [],
   exports: [],
   imports: [
@@ -19,6 +19,7 @@ import { getRealIp } from './utils';
     SessionsModule,
     UsersModule,
     ProblemsModule,
+    SubmissionsModule,
     PrismaModule,
     ThrottlerModule.forRoot([
       {
@@ -39,6 +40,10 @@ import { getRealIp } from './utils';
       {
         path: '/client/problems',
         module: ProblemsModule,
+      },
+      {
+        path: '/client/submissions',
+        module: SubmissionsModule,
       },
     ]),
   ],

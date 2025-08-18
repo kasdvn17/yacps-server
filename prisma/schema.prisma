@@ -148,7 +148,27 @@ model Submission {
 
   verdict SubmissionVerdict @default(QU)
 
-  isLocked Boolean @default(false)
+  // Judging details
+  judgeId     String?
+  judge       Judge?  @relation(fields: [judgeId], references: [id])
+  points      Float?  @default(0)
+  maxMemory   Int?    // in KB
+  maxTime     Float?  // in seconds
+  compileTime Float?  // in seconds
+  errorMessage String? // compilation or runtime errors
+  
+  // Queue and status management
+  isLocked    Boolean @default(false)
+  isPretest   Boolean @default(false)
+  queuedAt    DateTime?
+  judgingStartedAt DateTime?
+  judgingEndedAt   DateTime?
+
+  // Test case results
+  testCases SubmissionTestCase[]
+  
+  // Queue management
+  queue SubmissionQueue?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -159,6 +179,9 @@ model Submission {
   @@index([authorId, problemId])
   @@index([authorId, contestantId])
   @@index([contestantId, problemId])
+  @@index([judgeId])
+  @@index([verdict])
+  @@index([queuedAt])
 }
 
 enum SubmissionVerdict {
@@ -271,6 +294,12 @@ model Judge {
   token  JudgeToken?
 
   isDeleted Boolean @default(false)
+  isJudging Boolean @default(false)
+  
+  // Track current and past submissions
+  currentSubmissionId Int?
+  submissions         Submission[]
+  queuedSubmissions   SubmissionQueue[]
 
   lastActive DateTime
   createdAt  DateTime @default(now())
@@ -283,4 +312,54 @@ model JudgeToken {
   judgeId String @unique
 
   createdAt DateTime @default(now())
+}
+
+// Test case results for submissions
+model SubmissionTestCase {
+  id Int @id @default(autoincrement())
+  
+  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  submissionId Int
+  
+  caseNumber Int
+  batchNumber Int?
+  
+  verdict    SubmissionVerdict
+  time       Float? // execution time in seconds
+  memory     Int?   // memory usage in KB
+  points     Float? @default(0)
+  maxPoints  Float? @default(0)
+  
+  input      String? // for small test cases, can store input
+  output     String? // program output
+  expected   String? // expected output
+  feedback   String? // additional feedback
+  
+  createdAt DateTime @default(now())
+  
+  @@index([submissionId])
+  @@index([submissionId, caseNumber])
+  @@unique([submissionId, caseNumber])
+}
+
+// Submission queue for managing judge assignment
+model SubmissionQueue {
+  id Int @id @default(autoincrement())
+  
+  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  submissionId Int @unique
+  
+  priority    Int @default(0) // higher priority = judged first
+  attempts    Int @default(0) // number of judging attempts
+  maxAttempts Int @default(3)
+  
+  assignedJudgeId String?
+  assignedJudge   Judge?  @relation(fields: [assignedJudgeId], references: [id])
+  assignedAt      DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([priority, createdAt])
+  @@index([assignedJudgeId])
 }
