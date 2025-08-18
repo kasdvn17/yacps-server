@@ -205,35 +205,35 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
         void this.handleHandshake(judgeId, packet);
         break;
       case 'supported-problems':
-        this.handleSupportedProblems(judgeId, packet.data);
+        this.handleSupportedProblems(judgeId, packet);
         break;
       case 'compile-error':
-        this.handleCompileError(judgeId, packet.data);
+        this.handleCompileError(judgeId, packet);
         break;
       case 'compile-message':
-        this.handleCompileMessage(judgeId, packet.data);
+        this.handleCompileMessage(judgeId, packet);
         break;
       case 'begin-grading':
       case 'grading-begin':
-        this.handleBeginGrading(judgeId, packet.data);
+        this.handleBeginGrading(judgeId, packet);
         break;
       case 'grading-end':
-        this.handleGradingEnd(judgeId, packet.data);
+        this.handleGradingEnd(judgeId, packet);
         break;
       case 'batch-begin':
-        this.handleBatchBegin(judgeId, packet.data);
+        this.handleBatchBegin(judgeId, packet);
         break;
       case 'batch-end':
-        this.handleBatchEnd(judgeId, packet.data);
+        this.handleBatchEnd(judgeId, packet);
         break;
       case 'test-case-status':
-        this.handleTestCaseStatus(judgeId, packet.data);
+        this.handleTestCaseStatus(judgeId, packet);
         break;
       case 'submission-terminated':
-        this.handleSubmissionTerminated(judgeId, packet.data);
+        this.handleSubmissionTerminated(judgeId, packet);
         break;
       case 'submission-aborted':
-        this.handleSubmissionAborted(judgeId, packet.data);
+        this.handleSubmissionAborted(judgeId, packet);
         break;
       case 'submission-acknowledged':
         this.handleSubmissionAcknowledged(judgeId, packet);
@@ -496,11 +496,11 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
     }, 100);
   }
 
-  private handleSupportedProblems(judgeId: string, data: any): void {
-    this.logger.debug(`Judge ${judgeId} supports problems:`, data);
+  private handleSupportedProblems(judgeId: string, packet: any): void {
+    this.logger.debug(`Judge ${judgeId} supports problems:`, packet);
     this.eventEmitter.emit('judge.supported-problems', {
       judgeId,
-      problems: data,
+      problems: packet.problems || packet, // Support both flat and nested structure
     });
   }
 
