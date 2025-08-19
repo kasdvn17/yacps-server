@@ -8,8 +8,10 @@ import {
   NotFoundException,
   Param,
   Post,
+  Put,
   Req,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { Perms, Public } from '../auth/auth.decorator';
@@ -19,7 +21,7 @@ import { Request } from 'express';
 import { CreateProblemDTO } from './problems.dto';
 import { PrismaService } from '@/prisma/prisma.service';
 import { LoggedInUser } from '../users/users.decorator';
-import { User } from '@prisma/client';
+import { User, TestcaseDataVisibility } from '@prisma/client';
 
 @Controller()
 export class ProblemsController {
@@ -161,5 +163,82 @@ export class ProblemsController {
       this.logger.error(err);
       throw new InternalServerErrorException('UNKNOWN_ERROR', err);
     }
+  }
+
+  @Put(':problemSlug/testcase-visibility')
+  @UseGuards(AuthGuard)
+  async updateTestcaseVisibility(
+    @Param('problemSlug') problemSlug: string,
+    @Body() data: { visibility: TestcaseDataVisibility },
+    @LoggedInUser() user: User,
+  ) {
+    // Get the problem with permission info
+    const problem = await this.prismaService.problem.findUnique({
+      where: { slug: problemSlug },
+      include: {
+        authors: { select: { id: true } },
+        curators: { select: { id: true } },
+        testers: { select: { id: true } },
+      },
+    });
+
+    if (!problem) {
+      throw new NotFoundException('PROBLEM_NOT_FOUND');
+    }
+
+    // Check if user can edit this problem's test cases
+    if (!this.canEditProblemTestcases(problem, user)) {
+      throw new ForbiddenException('INSUFFICIENT_PERMISSIONS');
+    }
+
+    // Update the testcase visibility
+    const updatedProblem = await this.prismaService.problem.update({
+      where: { id: problem.id },
+      data: { testcaseDataVisibility: data.visibility },
+    });
+
+    return {
+      success: true,
+      data: {
+        testcaseDataVisibility: updatedProblem.testcaseDataVisibility,
+      },
+    };
+  }
+
+  /**
+   * Check if user can edit problem testcases
+   * Based on DMOJ's permission model: authors, curators, testers, or EDIT_PROBLEM_TESTS permission
+   */
+  private canEditProblemTestcases(
+    problem: {
+      authors: { id: string }[];
+      curators: { id: string }[];
+      testers: { id: string }[];
+    },
+    user: User,
+  ): boolean {
+    // Check if user has global permission
+    if (
+      user.perms &&
+      this.problemsService['permissionsService'].hasPerms(
+        user.perms,
+        UserPermissions.EDIT_PROBLEM_TESTS,
+      )
+    ) {
+      return true;
+    }
+
+    // Check if user is author, curator, or tester
+    const userIsAuthor = problem.authors.some(
+      (author) => author.id === user.id,
+    );
+    const userIsCurator = problem.curators.some(
+      (curator) => curator.id === user.id,
+    );
+    const userIsTester = problem.testers.some(
+      (tester) => tester.id === user.id,
+    );
+
+    return userIsAuthor || userIsCurator || userIsTester;
   }
 }

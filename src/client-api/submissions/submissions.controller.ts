@@ -16,7 +16,7 @@ import { SubmissionQueueService } from '@/judge-api/submission-queue/submission-
 import { CreateSubmissionDTO, SubmissionQueryDTO } from './dto/submission.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { LoggedInUser } from '../users/users.decorator';
-import { User } from '@prisma/client';
+import { User, TestcaseDataVisibility } from '@prisma/client';
 import { Public } from '../auth/auth.decorator';
 import { ProblemsService } from '../problems/problems.service';
 import { SubmissionsService } from './submissions.service';
@@ -135,7 +135,7 @@ export class SubmissionsController {
   }
 
   @Get(':id')
-  async getSubmission(@Param('id') id: string) {
+  async getSubmission(@Param('id') id: string, @LoggedInUser() user?: User) {
     const submissionId = parseInt(id, 10);
     if (isNaN(submissionId)) {
       throw new BadRequestException('INVALID_SUBMISSION');
@@ -158,6 +158,10 @@ export class SubmissionsController {
             name: true,
             points: true,
             testEnvironments: true,
+            testcaseDataVisibility: true,
+            authors: { select: { id: true } },
+            curators: { select: { id: true } },
+            testers: { select: { id: true } },
           },
         },
         testCases: {
@@ -177,12 +181,22 @@ export class SubmissionsController {
       throw new NotFoundException('SUBMISSION_NOT_FOUND');
     }
 
+    // Check if user can see test case data (input/output/expected)
+    const canSeeTestcaseData = this.canUserSeeTestcaseData(
+      submission.problem,
+      user,
+    );
+
     // Map feedback field for frontend compatibility
     const mappedSubmission = {
       ...submission,
       testCases: submission.testCases.map((testCase) => ({
         ...testCase,
         feedback: testCase.feedback, // Ensure feedback is passed through
+        // Only include input/output/expected if user has permission
+        input: canSeeTestcaseData ? testCase.input : undefined,
+        output: canSeeTestcaseData ? testCase.output : undefined,
+        expected: canSeeTestcaseData ? testCase.expected : undefined,
       })),
     };
 
@@ -242,5 +256,42 @@ export class SubmissionsController {
       success: true,
       data: status,
     };
+  }
+
+  /**
+   * Check if user can see test case data (input/output/expected)
+   * Based on DMOJ's testcase visibility model
+   */
+  private canUserSeeTestcaseData(
+    problem: {
+      testcaseDataVisibility: TestcaseDataVisibility;
+      authors: { id: string }[];
+      curators: { id: string }[];
+      testers: { id: string }[];
+    },
+    user?: User,
+  ): boolean {
+    // If testcase data is visible to everyone
+    if (problem.testcaseDataVisibility === TestcaseDataVisibility.EVERYONE) {
+      return true;
+    }
+
+    // If user is not authenticated, they can't see restricted data
+    if (!user) {
+      return false;
+    }
+
+    // Check if user is author, curator, or tester
+    const userIsAuthor = problem.authors.some(
+      (author) => author.id === user.id,
+    );
+    const userIsCurator = problem.curators.some(
+      (curator) => curator.id === user.id,
+    );
+    const userIsTester = problem.testers.some(
+      (tester) => tester.id === user.id,
+    );
+
+    return userIsAuthor || userIsCurator || userIsTester;
   }
 }
