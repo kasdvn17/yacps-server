@@ -57,7 +57,7 @@ export class JudgeManagerService implements OnModuleInit {
       }
 
       // Get connected judges directly from DMOJ bridge (no database check needed)
-      const connectedJudgeNames = this.dmojBridge.getConnectedJudgeNames();
+      const connectedJudgeNames = this.dmojBridge.getConnectedJudges();
 
       this.logger.debug(
         `Connected judges from DMOJ: ${connectedJudgeNames.length}`,
@@ -465,7 +465,7 @@ export class JudgeManagerService implements OnModuleInit {
 
     return judges.map((judge) => ({
       ...judge,
-      isConnected: this.dmojBridge.isJudgeConnected(judge.id),
+      isConnected: this.dmojBridge.isJudgeConnected(judge.name),
       submissionCount: judge._count.submissions,
     }));
   }
