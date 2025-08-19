@@ -303,6 +303,23 @@ export class JudgeManagerService implements OnModuleInit {
   async handleGradingEnd(data: { judgeId: string; submissionId: number }) {
     this.logger.debug(`Grading completed for submission ${data.submissionId}`);
 
+    // Get submission with problem info for points calculation
+    const submission = await this.prisma.submission.findUnique({
+      where: { id: data.submissionId },
+      include: {
+        problem: {
+          select: {
+            points: true,
+          },
+        },
+      },
+    });
+
+    if (!submission) {
+      this.logger.error(`Submission ${data.submissionId} not found`);
+      return;
+    }
+
     // Calculate final result from test cases
     const testCases = await this.prisma.submissionTestCase.findMany({
       where: { submissionId: data.submissionId },
@@ -310,8 +327,8 @@ export class JudgeManagerService implements OnModuleInit {
 
     // Determine final verdict and calculate stats
     let finalVerdict: SubmissionVerdict = SubmissionVerdict.AC;
-    let totalPoints = 0;
-    let maxPoints = 0;
+    let casePoints = 0;
+    let caseTotal = 0;
     let maxTime = 0;
     let maxMemory = 0;
 
@@ -331,8 +348,8 @@ export class JudgeManagerService implements OnModuleInit {
     };
 
     for (const testCase of testCases) {
-      totalPoints += testCase.points || 0;
-      maxPoints += testCase.maxPoints || 0;
+      casePoints += testCase.points || 0;
+      caseTotal += testCase.maxPoints || 0;
       maxTime = Math.max(maxTime, testCase.time || 0);
       maxMemory = Math.max(maxMemory, testCase.memory || 0);
 
@@ -347,16 +364,30 @@ export class JudgeManagerService implements OnModuleInit {
       }
     }
 
+    // Calculate final submission points using DMOJ's formula
+    // submission.points = (case_points / case_total) * problem.points
+    let submissionPoints = 0;
+    if (caseTotal > 0) {
+      submissionPoints =
+        Math.round(
+          (casePoints / caseTotal) * submission.problem.points * 1000,
+        ) / 1000; // Round to 3 decimal places like DMOJ
+    }
+
+    // Note: This system currently allows partial scoring by default
+    // In DMOJ, non-partial problems would set submissionPoints = 0 if not full score
+    // You can add a 'partial' field to Problem model to implement this feature
+
     // Complete submission
     this.logger.debug(
-      `Final verdict for submission ${data.submissionId}: ${finalVerdict} (from ${testCases.length} test cases)`,
+      `Final verdict for submission ${data.submissionId}: ${finalVerdict} (${casePoints}/${caseTotal} → ${submissionPoints}/${submission.problem.points})`,
     );
 
     await this.queueService.completeSubmission(
       data.submissionId,
       finalVerdict,
       {
-        points: totalPoints,
+        points: submissionPoints,
         maxMemory: maxMemory > 0 ? maxMemory : undefined,
         maxTime: maxTime > 0 ? maxTime : undefined,
       },
@@ -366,8 +397,8 @@ export class JudgeManagerService implements OnModuleInit {
     this.eventEmitter.emit('submission.update', {
       submissionId: data.submissionId,
       verdict: finalVerdict,
-      points: totalPoints,
-      maxPoints,
+      points: submissionPoints,
+      maxPoints: caseTotal,
       maxTime,
       maxMemory,
       timestamp: new Date(),

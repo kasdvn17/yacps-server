@@ -241,6 +241,9 @@ model Problem {
   testEnvironments ProblemTestEnvironment?
   solution         String?
 
+  // Test case visibility controls
+  testcaseDataVisibility TestcaseDataVisibility @default(AUTHOR_ONLY)
+  
   isDeleted Boolean @default(false)
   isPublic  Boolean @default(true)
   isLocked  Boolean @default(false)
@@ -282,6 +285,11 @@ enum UserStatus {
 enum JudgeStatus {
   ACTIVE
   DISABLED
+}
+
+enum TestcaseDataVisibility {
+  AUTHOR_ONLY // Only authors/curators/testers can see test case input/output
+  EVERYONE    // Everyone can see test case input/output
 }
 
 // Judge
