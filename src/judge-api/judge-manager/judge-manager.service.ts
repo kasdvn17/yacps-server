@@ -219,6 +219,18 @@ export class JudgeManagerService implements OnModuleInit {
   }
 
   /**
+   * Truncate large text data to prevent database bloat and improve performance
+   */
+  private truncateText(
+    text: string | undefined,
+    maxLength: number = 1000,
+  ): string | undefined {
+    if (!text) return text;
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '\n... [truncated]';
+  }
+
+  /**
    * Handle test case results
    */
   @OnEvent('submission.test-case-status')
@@ -248,6 +260,11 @@ export class JudgeManagerService implements OnModuleInit {
       `DMOJ status ${data.status} mapped to verdict: ${verdict}`,
     );
 
+    // Truncate large text data to prevent database bloat
+    const truncatedInput = this.truncateText(data.input);
+    const truncatedOutput = this.truncateText(data.output);
+    const truncatedExpected = this.truncateText(data.expected);
+
     // Store test case result
     await this.prisma.submissionTestCase.upsert({
       where: {
@@ -263,9 +280,9 @@ export class JudgeManagerService implements OnModuleInit {
         points: data.points,
         maxPoints: data.totalPoints,
         feedback: data.feedback,
-        input: data.input,
-        output: data.output,
-        expected: data.expected,
+        input: truncatedInput,
+        output: truncatedOutput,
+        expected: truncatedExpected,
         batchNumber: data.batchNumber,
       },
       create: {
@@ -278,9 +295,9 @@ export class JudgeManagerService implements OnModuleInit {
         points: data.points || 0,
         maxPoints: data.totalPoints || 0,
         feedback: data.feedback,
-        input: data.input,
-        output: data.output,
-        expected: data.expected,
+        input: truncatedInput,
+        output: truncatedOutput,
+        expected: truncatedExpected,
       },
     });
 
