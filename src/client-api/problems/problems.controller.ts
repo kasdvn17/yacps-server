@@ -110,6 +110,7 @@ export class ProblemsController {
       problemSource: problem.problemSource,
       author: problem.authors.map((v) => v.username),
       curator: problem.curators.map((v) => v.username),
+      testcaseDataVisibility: problem.testcaseDataVisibility,
       ...(problem.isDeleted && { isDeleted: true }),
     };
     return res;
