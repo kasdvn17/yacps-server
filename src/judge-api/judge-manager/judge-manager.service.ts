@@ -237,11 +237,15 @@ export class JudgeManagerService implements OnModuleInit {
     expected?: string;
   }) {
     this.logger.debug(
-      `Test case ${data.caseNumber} for submission ${data.submissionId}: ${data.status}`,
+      `Test case ${data.caseNumber} for submission ${data.submissionId}: status=${data.status}`,
     );
 
     // Map DMOJ status to our verdict enum
     const verdict = this.mapDMOJStatusToVerdict(Number(data.status));
+
+    this.logger.debug(
+      `DMOJ status ${data.status} mapped to verdict: ${verdict}`,
+    );
 
     // Store test case result
     await this.prisma.submissionTestCase.upsert({
@@ -344,6 +348,10 @@ export class JudgeManagerService implements OnModuleInit {
     }
 
     // Complete submission
+    this.logger.debug(
+      `Final verdict for submission ${data.submissionId}: ${finalVerdict} (from ${testCases.length} test cases)`,
+    );
+
     await this.queueService.completeSubmission(
       data.submissionId,
       finalVerdict,
@@ -411,30 +419,35 @@ export class JudgeManagerService implements OnModuleInit {
 
   /**
    * Map DMOJ status to our submission verdict enum
+   * Based on dmoj/result.py - DMOJ uses bit flags that can be combined
    */
   private mapDMOJStatusToVerdict(status: number): SubmissionVerdict {
-    const statusStr = status.toString();
-
-    // DMOJ result status codes mapping based on dmoj/result.py
-    // Using bit flags: AC=0, WA=1, RTE=2, TLE=4, MLE=8, IR=16, SC=32, OLE=64, IE=1073741824
-    const numericStatusMap: Record<string, SubmissionVerdict> = {
-      '0': SubmissionVerdict.AC, // Accepted
-      '1': SubmissionVerdict.WA, // Wrong Answer (1 << 0)
-      '2': SubmissionVerdict.RTE, // Runtime Error (1 << 1)
-      '4': SubmissionVerdict.TLE, // Time Limit Exceeded (1 << 2)
-      '8': SubmissionVerdict.MLE, // Memory Limit Exceeded (1 << 3)
-      '16': SubmissionVerdict.IR, // Invalid Return (1 << 4)
-      '32': SubmissionVerdict.SK, // Short Circuit/Skipped (1 << 5) - Special handling for skipped
-      '64': SubmissionVerdict.OLE, // Output Limit Exceeded (1 << 6)
-      '1073741824': SubmissionVerdict.ISE, // Internal Server Error (1 << 30)
-      // Additional commonly seen codes
-      '3': SubmissionVerdict.MLE, // Sometimes MLE appears as 3
-      '5': SubmissionVerdict.IR, // Sometimes IR appears as 5
-      '6': SubmissionVerdict.RTE, // Sometimes RTE appears as 6
-      '7': SubmissionVerdict.CE, // Compilation Error
+    // DMOJ result status bit flags from dmoj/result.py
+    const DMOJ_STATUS = {
+      AC: 0, // Accepted
+      WA: 1 << 0, // Wrong Answer = 1
+      RTE: 1 << 1, // Runtime Error = 2
+      TLE: 1 << 2, // Time Limit Exceeded = 4
+      MLE: 1 << 3, // Memory Limit Exceeded = 8
+      IR: 1 << 4, // Invalid Return = 16
+      SC: 1 << 5, // Short Circuit/Skipped = 32
+      OLE: 1 << 6, // Output Limit Exceeded = 64
+      IE: 1 << 30, // Internal Error = 1073741824
     };
 
-    return numericStatusMap[statusStr] || SubmissionVerdict.ISE;
+    // Priority order from DMOJ CODE_DISPLAY_ORDER: ('IE', 'TLE', 'MLE', 'OLE', 'RTE', 'IR', 'WA', 'SC')
+    // Check in priority order - return the first matching flag
+    if (status & DMOJ_STATUS.IE) return SubmissionVerdict.ISE;
+    if (status & DMOJ_STATUS.TLE) return SubmissionVerdict.TLE;
+    if (status & DMOJ_STATUS.MLE) return SubmissionVerdict.MLE;
+    if (status & DMOJ_STATUS.OLE) return SubmissionVerdict.OLE;
+    if (status & DMOJ_STATUS.RTE) return SubmissionVerdict.RTE;
+    if (status & DMOJ_STATUS.IR) return SubmissionVerdict.IR;
+    if (status & DMOJ_STATUS.WA) return SubmissionVerdict.WA;
+    if (status & DMOJ_STATUS.SC) return SubmissionVerdict.SK; // Skipped
+
+    // If no flags are set, it's AC
+    return status === 0 ? SubmissionVerdict.AC : SubmissionVerdict.ISE;
   }
 
   /**
