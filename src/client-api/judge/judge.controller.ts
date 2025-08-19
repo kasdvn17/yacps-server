@@ -15,7 +15,7 @@ export class JudgeController {
    */
   @Get('status')
   getJudgeStatus() {
-    const connectedJudges = this.dmojBridge.getConnectedJudgeNames();
+    const connectedJudges = this.dmojBridge.getConnectedJudges();
     return {
       connected: connectedJudges.length > 0,
       judgeCount: connectedJudges.length,
@@ -67,7 +67,7 @@ export class JudgeController {
   @Get('capabilities')
   getJudgeCapabilities() {
     const capabilities = this.dmojBridge.getJudgeCapabilities();
-    const connectedJudges = this.dmojBridge.getConnectedJudgeNames();
+    const connectedJudges = this.dmojBridge.getConnectedJudges();
 
     // Convert Map to object for JSON serialization
     const capabilitiesObj: { [key: string]: any } = {};

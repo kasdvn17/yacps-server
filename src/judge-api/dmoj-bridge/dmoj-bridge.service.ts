@@ -33,9 +33,8 @@ interface JudgeCapabilities {
 export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DMOJBridgeService.name);
   private judgeConnections = new Map<string, net.Socket>();
-  private authenticatedJudges = new Set<string>();
   private judgeCapabilities = new Map<string, JudgeCapabilities>();
-  private connectedJudgeNames = new Set<string>(); // Simple set of connected judge names
+  private connectedJudgeNames = new Set<string>(); // Judge names that are connected
   private connectionIdToJudgeName = new Map<string, string>(); // connection ID -> judge name
   private tcpServer: net.Server;
   private readonly port: number;
@@ -122,14 +121,20 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       }
 
       this.judgeConnections.delete(judgeId);
-      this.authenticatedJudges.delete(judgeId);
       this.judgeCapabilities.delete(judgeId);
     });
 
     socket.on('error', (error) => {
       this.logger.error(`Judge ${judgeId} connection error:`, error);
+
+      // Get judge name and remove from connected set
+      const judgeName = this.connectionIdToJudgeName.get(judgeId);
+      if (judgeName) {
+        this.connectedJudgeNames.delete(judgeName);
+        this.connectionIdToJudgeName.delete(judgeId);
+      }
+
       this.judgeConnections.delete(judgeId);
-      this.authenticatedJudges.delete(judgeId);
       this.judgeCapabilities.delete(judgeId);
     });
   }
@@ -272,8 +277,9 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
    * Submit a submission to a judge for grading
    */
   submitToJudge(judgeId: string, submission: DMOJSubmissionData): boolean {
-    if (!this.authenticatedJudges.has(judgeId)) {
-      this.logger.error(`Judge ${judgeId} not authenticated`);
+    const judgeName = this.connectionIdToJudgeName.get(judgeId);
+    if (!judgeName || !this.connectedJudgeNames.has(judgeName)) {
+      this.logger.error(`Judge ${judgeId} not connected or authenticated`);
       return false;
     }
 
@@ -430,9 +436,8 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
 
       // Authentication successful
       this.logger.log(`🎉 Judge ${judgeName} authenticated successfully!`);
-      this.authenticatedJudges.add(judgeId);
 
-      // Add judge name to connected judges set - this is what we'll check for availability
+      // Add judge name to connected judges set
       this.connectedJudgeNames.add(judgeName);
       this.connectionIdToJudgeName.set(judgeId, judgeName);
       this.logger.log(
@@ -491,7 +496,13 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       if (socket) {
         socket.destroy();
         this.judgeConnections.delete(judgeId);
-        this.authenticatedJudges.delete(judgeId);
+
+        // Remove from connected judges if it was added
+        const judgeName = this.connectionIdToJudgeName.get(judgeId);
+        if (judgeName) {
+          this.connectedJudgeNames.delete(judgeName);
+          this.connectionIdToJudgeName.delete(judgeId);
+        }
       }
     }, 100);
   }
@@ -625,27 +636,10 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Check if judge is connected and authenticated
-   */
-  isJudgeConnected(judgeId: string): boolean {
-    return (
-      this.judgeConnections.has(judgeId) &&
-      this.authenticatedJudges.has(judgeId)
-    );
-  }
-
-  /**
    * Check if a judge name is connected
    */
-  isJudgeNameConnected(judgeName: string): boolean {
+  isJudgeConnected(judgeName: string): boolean {
     return this.connectedJudgeNames.has(judgeName);
-  }
-
-  /**
-   * Get all connected judge names
-   */
-  getConnectedJudgeNames(): string[] {
-    return Array.from(this.connectedJudgeNames);
   }
 
   /**
@@ -661,10 +655,10 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Get all connected judges
+   * Get all connected judge names
    */
   getConnectedJudges(): string[] {
-    return Array.from(this.authenticatedJudges);
+    return Array.from(this.connectedJudgeNames);
   }
 
   /**
@@ -737,8 +731,14 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
     if (socket) {
       socket.destroy();
       this.judgeConnections.delete(judgeId);
-      this.authenticatedJudges.delete(judgeId);
-      this.judgeCapabilities.delete(judgeId); // Clean up capabilities
+      this.judgeCapabilities.delete(judgeId);
+
+      // Remove from connected judges
+      const judgeName = this.connectionIdToJudgeName.get(judgeId);
+      if (judgeName) {
+        this.connectedJudgeNames.delete(judgeName);
+        this.connectionIdToJudgeName.delete(judgeId);
+      }
     }
   }
 
@@ -750,6 +750,8 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       socket.destroy();
     }
     this.judgeConnections.clear();
-    this.authenticatedJudges.clear();
+    this.judgeCapabilities.clear();
+    this.connectedJudgeNames.clear();
+    this.connectionIdToJudgeName.clear();
   }
 }
