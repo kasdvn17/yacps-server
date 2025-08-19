@@ -233,6 +233,7 @@ export class JudgeManagerService implements OnModuleInit {
     points?: number;
     totalPoints?: number;
     feedback?: string;
+    input?: string;
     output?: string;
     expected?: string;
   }) {
@@ -262,6 +263,7 @@ export class JudgeManagerService implements OnModuleInit {
         points: data.points,
         maxPoints: data.totalPoints,
         feedback: data.feedback,
+        input: data.input,
         output: data.output,
         expected: data.expected,
         batchNumber: data.batchNumber,
@@ -276,6 +278,7 @@ export class JudgeManagerService implements OnModuleInit {
         points: data.points || 0,
         maxPoints: data.totalPoints || 0,
         feedback: data.feedback,
+        input: data.input,
         output: data.output,
         expected: data.expected,
       },

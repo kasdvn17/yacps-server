@@ -187,17 +187,41 @@ export class SubmissionsController {
       user,
     );
 
-    // Map feedback field for frontend compatibility
+    // Get problem test cases if user has permission to see test case data
+    let problemTestCases: any[] = [];
+    if (canSeeTestcaseData) {
+      problemTestCases = await this.prisma.problemTestCase.findMany({
+        where: {
+          problemId: submission.problem.id,
+          isDeleted: false,
+        },
+        orderBy: { caseNumber: 'asc' },
+      });
+    }
+
+    // Map feedback field for frontend compatibility and merge with problem test case data
     const mappedSubmission = {
       ...submission,
-      testCases: submission.testCases.map((testCase) => ({
-        ...testCase,
-        feedback: testCase.feedback, // Ensure feedback is passed through
-        // Only include input/output/expected if user has permission
-        input: canSeeTestcaseData ? testCase.input : undefined,
-        output: canSeeTestcaseData ? testCase.output : undefined,
-        expected: canSeeTestcaseData ? testCase.expected : undefined,
-      })),
+      testCases: submission.testCases.map((testCase) => {
+        // Find matching problem test case for input/expected data (fallback)
+        const problemTestCase = problemTestCases.find(
+          (ptc) => ptc.caseNumber === testCase.caseNumber,
+        );
+
+        return {
+          ...testCase,
+          feedback: testCase.feedback, // Ensure feedback is passed through
+          // Include input/output/expected if user has permission
+          // Use data from judge if available, otherwise fall back to problem test case
+          input: canSeeTestcaseData
+            ? testCase.input || problemTestCase?.input
+            : undefined,
+          output: canSeeTestcaseData ? testCase.output : undefined,
+          expected: canSeeTestcaseData
+            ? testCase.expected || problemTestCase?.expected
+            : undefined,
+        };
+      }),
     };
 
     return {

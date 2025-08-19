@@ -586,7 +586,8 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
           totalPoints: testCase['total-points'],
           feedback: testCase.feedback || testCase['extended-feedback'] || '',
           output: testCase.output,
-          expected: testCase.expected,
+          input: testCase.input || '',
+          expected: testCase['expected-output'] || testCase.expected || '',
         });
       });
     } else {
@@ -603,7 +604,8 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
         totalPoints: data['total-points'],
         feedback: data.feedback || data['extended-feedback'] || '',
         output: data.output,
-        expected: data.expected,
+        input: data.input || '',
+        expected: data['expected-output'] || data.expected || '',
       });
     }
   }
