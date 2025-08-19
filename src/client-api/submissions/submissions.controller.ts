@@ -177,12 +177,12 @@ export class SubmissionsController {
       throw new NotFoundException('SUBMISSION_NOT_FOUND');
     }
 
-    // Map feedback field to errorMessage for frontend compatibility
+    // Map feedback field for frontend compatibility
     const mappedSubmission = {
       ...submission,
       testCases: submission.testCases.map((testCase) => ({
         ...testCase,
-        errorMessage: testCase.feedback, // Map feedback to errorMessage for frontend
+        feedback: testCase.feedback, // Ensure feedback is passed through
       })),
     };
 
