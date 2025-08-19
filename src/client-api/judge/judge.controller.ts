@@ -19,14 +19,6 @@ export class JudgeController {
   }
 
   /**
-   * Get available problems across all judges
-   */
-  @Get('problems')
-  getAvailableProblems() {
-    return this.dmojBridge.getAvailableProblems();
-  }
-
-  /**
    * Get available executors (languages) across all judges
    */
   @Get('executors')
@@ -76,7 +68,6 @@ export class JudgeController {
       judges: capabilitiesObj,
       summary: {
         connectedJudges: connectedJudges.length,
-        totalProblems: this.dmojBridge.getAvailableProblems().length,
         totalExecutors: this.dmojBridge.getAvailableExecutors().length,
       },
     };
