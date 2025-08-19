@@ -7,8 +7,8 @@ import {
 } from 'class-validator';
 
 export class CreateSubmissionDTO {
-  @IsInt()
-  problemId: number;
+  @IsString()
+  problemSlug: string;
 
   @IsString()
   @Length(1, 100)

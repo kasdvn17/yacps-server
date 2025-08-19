@@ -200,33 +200,33 @@ export class UsersController {
         return sum + (submission.points || 0);
       }, 0);
 
-      // Calculate user rank by points (simplified - could be optimized)
-      // Since we don't have a totalPoints field, we need to calculate it for all users
-      const allUsers = await this.prismaService.user.findMany({
-        where: {
-          isDeleted: false,
-        },
-        include: {
-          submissions: {
-            select: {
-              points: true,
-            },
-          },
-        },
-      });
+      // // Calculate user rank by points (simplified - could be optimized)
+      // // Since we don't have a totalPoints field, we need to calculate it for all users
+      // const allUsers = await this.prismaService.user.findMany({
+      //   where: {
+      //     isDeleted: false,
+      //   },
+      //   include: {
+      //     submissions: {
+      //       select: {
+      //         points: true,
+      //       },
+      //     },
+      //   },
+      // });
 
-      const usersWithPoints = allUsers.map((u) => ({
-        id: u.id,
-        totalPoints: u.submissions.reduce(
-          (sum, sub) => sum + (sub.points || 0),
-          0,
-        ),
-      }));
+      // const usersWithPoints = allUsers.map((u) => ({
+      //   id: u.id,
+      //   totalPoints: u.submissions.reduce(
+      //     (sum, sub) => sum + (sub.points || 0),
+      //     0,
+      //   ),
+      // }));
 
-      const usersWithMorePoints = usersWithPoints.filter(
-        (u) => u.totalPoints > totalPoints,
-      );
-      const userRank = usersWithMorePoints.length + 1;
+      // const usersWithMorePoints = usersWithPoints.filter(
+      //   (u) => u.totalPoints > totalPoints,
+      // );
+      // const userRank = usersWithMorePoints.length + 1;
 
       // Transform submissions to match frontend interface
       const transformedSubmissions = submissions.map((submission) => ({
@@ -241,7 +241,7 @@ export class UsersController {
 
       return {
         totalPoints,
-        rankByPoints: userRank,
+        // rankByPoints: userRank,
         submissions: transformedSubmissions,
         bio: '', // User model doesn't have bio field
         avatarURL: '', // User model doesn't have avatarURL field

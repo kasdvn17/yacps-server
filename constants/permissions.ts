@@ -56,6 +56,12 @@ export const UserPermissions = {
   CLONE_PROBLEM: 1n << 31n,
   EDIT_CLARIFICATIONS: 1n << 32n,
   EDIT_PROBLEM_TESTS: 1n << 33n,
+
+  // Judge
+  VIEW_ALL_JUDGES: 1n << 34n,
+  EDIT_JUDGES: 1n << 35n,
+  CREATE_NEW_JUDGE: 1n << 36n,
+  DELETE_JUDGES: 1n << 37n,
 } as const;
 
 export type PermissionName = keyof typeof UserPermissions;

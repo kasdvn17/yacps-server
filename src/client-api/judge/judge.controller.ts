@@ -1,7 +1,12 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, UseGuards } from '@nestjs/common';
 import { DMOJBridgeService } from '@/judge-api/dmoj-bridge/dmoj-bridge.service';
+import { AuthGuard } from '../auth/auth.guard';
+import { Perms } from '../auth/auth.decorator';
+import { UserPermissions } from 'constants/permissions';
 
 @Controller()
+@UseGuards(AuthGuard)
+@Perms([UserPermissions.VIEW_ALL_JUDGES])
 export class JudgeController {
   constructor(private dmojBridge: DMOJBridgeService) {}
 
