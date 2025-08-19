@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { SessionsService } from './sessions.service';
 import { CreateSessionDTO } from './sessions.dto';
-import { Session } from '@prisma/client';
+import { Session, User } from '@prisma/client';
 import { UsersService } from '../users/users.service';
 import { Argon2Service } from '../argon2/argon2.service';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -27,6 +27,7 @@ import { getRealIp } from '../utils';
 import { TurnstileService } from '../turnstile/turnstile.service';
 import { Config } from 'config';
 import { RealIP } from 'nestjs-real-ip';
+import { LoggedInUser } from '../users/users.decorator';
 
 @Controller()
 @UseGuards(AuthGuard, ThrottlerGuard)
@@ -112,8 +113,8 @@ export class SessionsController {
   }
 
   @Get('/all')
-  async getMySessions(@Req() req: Request) {
-    const userId: string = req['user'].id;
+  async getMySessions(@Req() req: Request, @LoggedInUser() user: User) {
+    const userId: string = user.id;
     return await this.sessionsService.findSessions({
       userId,
     });
@@ -131,8 +132,8 @@ export class SessionsController {
   }
 
   @Delete('/all')
-  async destroyAllSessions(@Req() req: Request) {
-    const userId: string = req['user'].id;
+  async destroyAllSessions(@Req() req: Request, @LoggedInUser() user: User) {
+    const userId: string = user.id;
     const currentSessionId: string = req['session'].id;
 
     // Delete all sessions except the current one to keep user logged in

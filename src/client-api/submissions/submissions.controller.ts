@@ -6,7 +6,6 @@ import {
   Param,
   Query,
   UseGuards,
-  Req,
   NotFoundException,
   BadRequestException,
   Logger,
@@ -15,8 +14,12 @@ import { AuthGuard } from '../auth/auth.guard';
 import { PrismaService } from '@/prisma/prisma.service';
 import { SubmissionQueueService } from '@/judge-api/submission-queue/submission-queue.service';
 import { CreateSubmissionDTO, SubmissionQueryDTO } from './dto/submission.dto';
-import { Request } from 'express';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { LoggedInUser } from '../users/users.decorator';
+import { User } from '@prisma/client';
+import { Public } from '../auth/auth.decorator';
+import { ProblemsService } from '../problems/problems.service';
+import { SubmissionsService } from './submissions.service';
 
 @Controller()
 @UseGuards(AuthGuard)
@@ -27,26 +30,19 @@ export class SubmissionsController {
     private prisma: PrismaService,
     private queueService: SubmissionQueueService,
     private eventEmitter: EventEmitter2,
+    private problemsService: ProblemsService,
+    private submissionsService: SubmissionsService,
   ) {}
 
   @Post()
   async createSubmission(
-    @Req() req: Request,
     @Body() body: CreateSubmissionDTO,
+    @LoggedInUser() user: User,
   ) {
-    const user = req['user'];
-
     // Check if problem exists and is accessible
-    const problem = await this.prisma.problem.findFirst({
-      where: {
-        id: body.problemId,
-        isDeleted: false,
-        isPublic: true,
-      },
-      include: {
-        testEnvironments: true,
-      },
-    });
+    const problem = await this.problemsService.findViewableProblemWithSlug(
+      body.problemSlug,
+    );
 
     if (!problem) {
       throw new NotFoundException('PROBLEM_NOT_FOUND');
@@ -54,56 +50,18 @@ export class SubmissionsController {
 
     // Check if language is supported for this problem
     const supportedLanguages = problem.testEnvironments?.allowedLangs || [];
-    if (
-      supportedLanguages.length > 0 &&
-      !supportedLanguages.includes(body.language)
-    ) {
+    if (!supportedLanguages.includes(body.language)) {
       throw new BadRequestException('LANGUAGE_NOT_SUPPORTED');
     }
 
-    // Create submission
-    const submission = await this.prisma.submission.create({
-      data: {
-        authorId: user.id,
-        problemId: body.problemId,
-        contestantId: body.contestantId,
-        code: body.code,
-        language: body.language,
-        isPretest: body.isPretest || false,
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            username: true,
-            fullname: true,
-          },
-        },
-        problem: {
-          select: {
-            id: true,
-            slug: true,
-            name: true,
-            points: true,
-          },
-        },
-      },
-    });
-
-    // Add to queue
-    await this.queueService.addToQueue(submission.id);
-
-    this.logger.log(
-      `Submission ${submission.id} created by user ${user.username} for problem ${problem.slug}`,
+    const submission = await this.submissionsService.createSubmission(
+      user,
+      problem,
+      body.code,
+      body.language,
+      body.contestantId,
+      body.isPretest,
     );
-
-    // Emit event for live updates
-    this.eventEmitter.emit('submission.created', {
-      submissionId: submission.id,
-      authorId: user.id,
-      problemId: body.problemId,
-      timestamp: new Date(),
-    });
 
     return {
       success: true,
@@ -112,6 +70,7 @@ export class SubmissionsController {
   }
 
   @Get()
+  @Public()
   async getSubmissions(@Query() query: SubmissionQueryDTO) {
     const { page = 1, limit = 20, ...filters } = query;
     const skip = (page - 1) * limit;
@@ -135,6 +94,7 @@ export class SubmissionsController {
               id: true,
               username: true,
               fullname: true,
+              rating: true,
             },
           },
           problem: {
@@ -154,6 +114,9 @@ export class SubmissionsController {
               points: true,
             },
           },
+        },
+        omit: {
+          code: true,
         },
       }),
       this.prisma.submission.count({ where }),
@@ -175,7 +138,7 @@ export class SubmissionsController {
   async getSubmission(@Param('id') id: string) {
     const submissionId = parseInt(id, 10);
     if (isNaN(submissionId)) {
-      throw new BadRequestException('INVALID_SUBMISSION_ID');
+      throw new BadRequestException('INVALID_SUBMISSION');
     }
 
     const submission = await this.prisma.submission.findUnique({
