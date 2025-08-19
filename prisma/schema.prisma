@@ -239,6 +239,7 @@ model Problem {
   contests         Contest[]
   submissions      Submission[]
   testEnvironments ProblemTestEnvironment?
+  testCases        ProblemTestCase[]
   solution         String?
 
   // Test case visibility controls
@@ -250,6 +251,30 @@ model Problem {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// Test cases for problems (stores input/expected data for visibility control)
+model ProblemTestCase {
+  id Int @id @default(autoincrement())
+  
+  problem   Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  problemId Int
+  
+  caseNumber Int
+  batchNumber Int?
+  
+  input      String  // test case input
+  expected   String  // expected output
+  points     Float?  @default(1) // points for this test case
+  
+  isDeleted Boolean @default(false)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([problemId])
+  @@index([problemId, caseNumber])
+  @@unique([problemId, caseNumber])
 }
 
 model ProblemTestEnvironment {
