@@ -9,6 +9,7 @@ import {
   NotFoundException,
   BadRequestException,
   Logger,
+  ForbiddenException,
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -60,6 +61,8 @@ export class SubmissionsController {
     if (!supportedLanguages.includes(body.language)) {
       throw new BadRequestException('LANGUAGE_NOT_SUPPORTED');
     }
+
+    if (problem.isLocked) throw new ForbiddenException('PROBLEM_LOCKED');
 
     const submission = await this.submissionsService.createSubmission(
       user,
