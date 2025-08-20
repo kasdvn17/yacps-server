@@ -29,11 +29,11 @@ export class JudgeController {
   /**
    * Check if a specific problem is available
    */
-  @Get('problems/:problemCode/available')
-  isProblemAvailable(@Param('problemCode') problemCode: string) {
+  @Get('problems/:problemSlug/available')
+  isProblemAvailable(@Param('problemSlug') problemSlug: string) {
     return {
-      problemCode,
-      available: this.dmojBridge.isProblemAvailable(problemCode),
+      problemSlug,
+      available: this.dmojBridge.isProblemAvailable(problemSlug),
     };
   }
 

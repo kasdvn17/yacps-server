@@ -704,9 +704,9 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   /**
    * Check if a problem is available on any judge
    */
-  isProblemAvailable(problemCode: string): boolean {
+  isProblemAvailable(problemSlug: string): boolean {
     for (const capabilities of this.judgeCapabilities.values()) {
-      if (capabilities.problems.includes(problemCode)) {
+      if (capabilities.problems.includes(problemSlug)) {
         return true;
       }
     }
