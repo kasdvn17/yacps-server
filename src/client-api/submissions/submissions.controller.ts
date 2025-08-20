@@ -184,13 +184,6 @@ export class SubmissionsController {
         testCases: {
           orderBy: { caseNumber: 'asc' },
         },
-        judge: {
-          select: {
-            id: true,
-            name: true,
-            host: true,
-          },
-        },
       },
     });
 
@@ -222,6 +215,11 @@ export class SubmissionsController {
         orderBy: { caseNumber: 'asc' },
       });
     }
+
+    // Redact problem moderators for privacy
+    submission.problem.authors = [];
+    submission.problem.curators = [];
+    submission.problem.testers = [];
 
     // Map feedback field for frontend compatibility and merge with problem test case data
     const mappedSubmission = {

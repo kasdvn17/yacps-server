@@ -133,6 +133,7 @@ export class ProblemsController {
       curator: problem.curators.map((v) => v.username),
       testcaseDataVisibility: problem.testcaseDataVisibility,
       ...(problem.isDeleted && { isDeleted: true }),
+      ...(problem.isLocked && { isLocked: true }),
     };
     return res;
   }
