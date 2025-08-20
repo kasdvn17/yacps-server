@@ -107,6 +107,7 @@ export class JudgeManagerService implements OnModuleInit {
         );
         await this.queueService.failSubmission(
           queueEntry.submission.id,
+          selectedJudgeName,
           'Judge connection not found',
         );
         return;
@@ -120,6 +121,7 @@ export class JudgeManagerService implements OnModuleInit {
       if (!success) {
         await this.queueService.failSubmission(
           queueEntry.submission.id,
+          selectedJudgeName,
           'Failed to send submission to judge',
         );
       } else {
@@ -174,8 +176,17 @@ export class JudgeManagerService implements OnModuleInit {
   }) {
     this.logger.debug(`Compile error for submission ${data.submissionId}`);
 
+    // Get judge name from database
+    const judge = await this.prisma.judge.findUnique({
+      where: { id: data.judgeId },
+      select: { name: true },
+    });
+
+    const judgeName = judge?.name || 'unknown';
+
     await this.queueService.completeSubmission(
       data.submissionId,
+      judgeName,
       SubmissionVerdict.CE,
       { errorMessage: data.error },
     );
@@ -403,8 +414,17 @@ export class JudgeManagerService implements OnModuleInit {
       `Final verdict for submission ${data.submissionId}: ${finalVerdict} (${casePoints}/${caseTotal} → ${submissionPoints}/${submission.problem.points})`,
     );
 
+    // Get judge name from database
+    const judge = await this.prisma.judge.findUnique({
+      where: { id: data.judgeId },
+      select: { name: true },
+    });
+
+    const judgeName = judge?.name || 'unknown';
+
     await this.queueService.completeSubmission(
       data.submissionId,
+      judgeName,
       finalVerdict,
       {
         points: submissionPoints,
@@ -435,8 +455,17 @@ export class JudgeManagerService implements OnModuleInit {
   }) {
     this.logger.debug(`Submission ${data.submissionId} was aborted`);
 
+    // Get judge name from database
+    const judge = await this.prisma.judge.findUnique({
+      where: { id: data.judgeId },
+      select: { name: true },
+    });
+
+    const judgeName = judge?.name || 'unknown';
+
     await this.queueService.completeSubmission(
       data.submissionId,
+      judgeName,
       SubmissionVerdict.AB,
     );
 
