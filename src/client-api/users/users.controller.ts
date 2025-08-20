@@ -37,6 +37,10 @@ export class UsersController {
     private turnstileService: TurnstileService,
   ) {}
 
+  /**
+   * Create a new user
+   * @param body The body of the request containing user details for registration.
+   */
   @Post('/')
   @Public()
   // 3 signup attempts per minute per real IP
@@ -94,9 +98,6 @@ export class UsersController {
           password: hashed,
           status: Config.ENABLE_MAIL_CONFIRMATION ? 'CONF_AWAITING' : 'ACTIVE',
         },
-        omit: {
-          password: true,
-        },
       });
     } catch (err) {
       this.logger.error(err);
@@ -104,6 +105,10 @@ export class UsersController {
     }
   }
 
+  /**
+   * Force create a user (admin only)
+   * @param body The body of the request containing user details for registration.
+   */
   @Post('/force')
   @UseGuards(AuthGuard)
   @Perms([UserPermissions.FORCE_CREATE_USERS])
@@ -148,6 +153,10 @@ export class UsersController {
     }
   }
 
+  /**
+   * Get the current user details
+   * @param req The request object containing user information.
+   */
   @Get('/me')
   getCurrentUser(@Req() req: Request) {
     const response = {
@@ -159,6 +168,11 @@ export class UsersController {
     return response;
   }
 
+  /**
+   * Get user details by username
+   * @param username The username of the user to retrieve details for.
+   * @returns User details including submissions and total points.
+   */
   @Get('/details/:username')
   @Public()
   async getUserDetails(@Param('username') username: string) {

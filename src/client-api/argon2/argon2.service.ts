@@ -6,6 +6,11 @@ import { Config } from 'config';
 export class Argon2Service {
   private readonly logger = new Logger(Argon2Service.name);
 
+  /**
+   * Hash a password using Argon2
+   * @param password The password to hash
+   * @returns The promise of hashed password
+   */
   async hashPassword(password: string): Promise<string> {
     return await argon2.hash(password, {
       type: argon2.argon2id,
@@ -15,6 +20,12 @@ export class Argon2Service {
     });
   }
 
+  /**
+   * Compare a password
+   * @param plain The plain text password to compare
+   * @param encrypted The encrypted password to compare against
+   * @returns The promise of boolean indicating if the passwords match
+   */
   async comparePassword(plain: string, encrypted: string): Promise<boolean> {
     try {
       return await argon2.verify(encrypted, plain);

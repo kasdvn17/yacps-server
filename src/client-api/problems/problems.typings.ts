@@ -1,4 +1,4 @@
-export interface ProblemStatus {
+export interface IProblemStatus {
   problemSlug: string;
   isLocked: boolean;
   isPublic: boolean;
@@ -6,16 +6,16 @@ export interface ProblemStatus {
   attempted: boolean;
 }
 
-export type ProblemStatusCode =
-  | 'SP'
-  | 'AP'
-  | 'UP'
-  | 'SH'
-  | 'AH'
-  | 'UH'
-  | 'SPL'
-  | 'APL'
-  | 'UPL'
-  | 'SHL'
-  | 'AHL'
-  | 'UHL';
+// export type TProblemStatusCode =
+//   | 'SP'
+//   | 'AP'
+//   | 'UP'
+//   | 'SH'
+//   | 'AH'
+//   | 'UH'
+//   | 'SPL'
+//   | 'APL'
+//   | 'UPL'
+//   | 'SHL'
+//   | 'AHL'
+//   | 'UHL';

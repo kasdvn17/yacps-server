@@ -18,6 +18,16 @@ export class SubmissionsService {
     private eventEmitter: EventEmitter2,
   ) {}
 
+  /**
+   * Creates a new submission for a problem.
+   * @param user The user making the submission.
+   * @param problem The problem for which the submission is made.
+   * @param code The source code of the submission.
+   * @param language The programming language of the submission.
+   * @param contestantId Optional contestant ID for team submissions.
+   * @param isPretest Whether this submission is a pretest (default: false).
+   * @returns The created submission object.
+   */
   async createSubmission(
     user: User,
     problem: Problem,

@@ -7,6 +7,13 @@ import { User } from '@prisma/client';
 export class UsersService {
   constructor(private prismaService: PrismaService) {}
 
+  /**
+   * Find a user by given fields.
+   * @param fields Fields to search for
+   * @param isDeleted Whether to search for deleted users only
+   * @param includeHash Whether to include the password hash in the result
+   * @returns Return the user object
+   */
   async findUser(
     fields: Partial<User>,
     isDeleted: boolean | undefined,
@@ -25,6 +32,14 @@ export class UsersService {
     );
   }
 
+  /**
+   * Find multiple users by given fields.
+   * @param fields Fields to search for
+   * @param isDeleted Whether to search for deleted users only
+   * @param includeHash Whether to include the password hash in the result
+   * @param limit Maximum number of users to return
+   * @returns Array of users matching the criteria
+   */
   async findUsers(
     fields: Partial<User>,
     isDeleted: boolean = false,
