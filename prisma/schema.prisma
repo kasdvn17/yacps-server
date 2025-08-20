@@ -149,24 +149,24 @@ model Submission {
   verdict SubmissionVerdict @default(QU)
 
   // Judging details
-  judgeId     String?
-  judge       Judge?  @relation(fields: [judgeId], references: [id])
-  points      Float?  @default(0)
-  maxMemory   Int?    // in KB
-  maxTime     Float?  // in seconds
-  compileTime Float?  // in seconds
+  judgeId      String?
+  judge        Judge?  @relation(fields: [judgeId], references: [id])
+  points       Float?  @default(0)
+  maxMemory    Int? // in KB
+  maxTime      Float? // in seconds
+  compileTime  Float? // in seconds
   errorMessage String? // compilation or runtime errors
-  
+
   // Queue and status management
-  isLocked    Boolean @default(false)
-  isPretest   Boolean @default(false)
-  queuedAt    DateTime?
+  isLocked         Boolean   @default(false)
+  isPretest        Boolean   @default(false)
+  queuedAt         DateTime?
   judgingStartedAt DateTime?
   judgingEndedAt   DateTime?
 
   // Test case results
   testCases SubmissionTestCase[]
-  
+
   // Queue management
   queue SubmissionQueue?
 
@@ -244,7 +244,7 @@ model Problem {
 
   // Test case visibility controls
   testcaseDataVisibility TestcaseDataVisibility @default(AUTHOR_ONLY)
-  
+
   isDeleted Boolean @default(false)
   isPublic  Boolean @default(true)
   isLocked  Boolean @default(false)
@@ -256,25 +256,25 @@ model Problem {
 // Test cases for problems (stores input/expected data for visibility control)
 model ProblemTestCase {
   id Int @id @default(autoincrement())
-  
+
   problem   Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
   problemId Int
-  
-  caseNumber Int
+
+  caseNumber  Int
   batchNumber Int?
-  
-  input      String  // test case input
-  expected   String  // expected output
-  points     Float?  @default(1) // points for this test case
-  
+
+  input    String // test case input
+  expected String // expected output
+  points   Float? @default(1) // points for this test case
+
   isDeleted Boolean @default(false)
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
+  @@unique([problemId, caseNumber])
   @@index([problemId])
   @@index([problemId, caseNumber])
-  @@unique([problemId, caseNumber])
 }
 
 model ProblemTestEnvironment {
@@ -314,7 +314,8 @@ enum JudgeStatus {
 
 enum TestcaseDataVisibility {
   AUTHOR_ONLY // Only authors/curators/testers can see test case input/output
-  EVERYONE    // Everyone can see test case input/output
+  AC_ONLY // Only users who have solved the problem can see test case input/output
+  EVERYONE // Everyone can see test case input/output
 }
 
 // Judge
@@ -329,7 +330,7 @@ model Judge {
 
   isDeleted Boolean @default(false)
   isJudging Boolean @default(false)
-  
+
   // Track current and past submissions
   currentSubmissionId Int?
   submissions         Submission[]
@@ -351,49 +352,49 @@ model JudgeToken {
 // Test case results for submissions
 model SubmissionTestCase {
   id Int @id @default(autoincrement())
-  
+
   submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
   submissionId Int
-  
-  caseNumber Int
+
+  caseNumber  Int
   batchNumber Int?
-  
-  verdict    SubmissionVerdict
-  time       Float? // execution time in seconds
-  memory     Int?   // memory usage in KB
-  points     Float? @default(0)
-  maxPoints  Float? @default(0)
-  
-  input      String? // for small test cases, can store input
-  output     String? // program output
-  expected   String? // expected output
-  feedback   String? // additional feedback
-  
+
+  verdict   SubmissionVerdict
+  time      Float? // execution time in seconds
+  memory    Int? // memory usage in KB
+  points    Float?            @default(0)
+  maxPoints Float?            @default(0)
+
+  input    String? // for small test cases, can store input
+  output   String? // program output
+  expected String? // expected output
+  feedback String? // additional feedback
+
   createdAt DateTime @default(now())
-  
+
+  @@unique([submissionId, caseNumber])
   @@index([submissionId])
   @@index([submissionId, caseNumber])
-  @@unique([submissionId, caseNumber])
 }
 
 // Submission queue for managing judge assignment
 model SubmissionQueue {
   id Int @id @default(autoincrement())
-  
+
   submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  submissionId Int @unique
-  
+  submissionId Int        @unique
+
   priority    Int @default(0) // higher priority = judged first
   attempts    Int @default(0) // number of judging attempts
   maxAttempts Int @default(3)
-  
+
   assignedJudgeId String?
-  assignedJudge   Judge?  @relation(fields: [assignedJudgeId], references: [id])
+  assignedJudge   Judge?    @relation(fields: [assignedJudgeId], references: [id])
   assignedAt      DateTime?
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@index([priority, createdAt])
   @@index([assignedJudgeId])
 }

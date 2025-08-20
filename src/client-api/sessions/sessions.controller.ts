@@ -42,6 +42,13 @@ export class SessionsController {
     private turnstileService: TurnstileService,
   ) {}
 
+  /**
+   * Create a new session
+   * @param req The request object
+   * @param body The data for new session
+   * @param no_captcha_ip The IP extracted from the request if Turnstile is not enabled
+   * @returns The token for the new session
+   */
   @Post('/')
   @Public()
   // 5 login attempts per minute per real IP
@@ -98,6 +105,11 @@ export class SessionsController {
     return { data: token };
   }
 
+  /**
+   * Get the current session details
+   * @param req The request object
+   * @returns The current session details
+   */
   @Get('/me')
   getCurrentSession(@Req() req: Request) {
     const response = {
@@ -107,11 +119,20 @@ export class SessionsController {
     return response;
   }
 
+  /**
+   * Delete the current session
+   * @param req The request object
+   */
   @Delete('/me')
   async destroyCurrentSession(@Req() req: Request) {
     await this.sessionsService.deleteSession(req['session'].id);
   }
 
+  /**
+   * Get all sessions for the logged-in user
+   * @param req The request object
+   * @param user The logged-in user
+   */
   @Get('/all')
   async getMySessions(@Req() req: Request, @LoggedInUser() user: User) {
     const userId: string = user.id;
@@ -120,6 +141,10 @@ export class SessionsController {
     });
   }
 
+  /**
+   * Find sessions based on query parameters
+   * @param queries The query parameters to filter sessions
+   */
   @Get('/find')
   @Perms([UserPermissions.VIEW_USER_SESSIONS])
   async findSessions(@Query() queries: Partial<Session>) {
@@ -131,6 +156,11 @@ export class SessionsController {
     return data;
   }
 
+  /**
+   * Delete all sessions for the logged-in user except the current one
+   * @param req The request object
+   * @param user The logged-in user
+   */
   @Delete('/all')
   async destroyAllSessions(@Req() req: Request, @LoggedInUser() user: User) {
     const userId: string = user.id;

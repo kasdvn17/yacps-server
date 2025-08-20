@@ -22,6 +22,7 @@ import { CreateProblemDTO } from './problems.dto';
 import { PrismaService } from '@/prisma/prisma.service';
 import { LoggedInUser } from '../users/users.decorator';
 import { User, TestcaseDataVisibility } from '@prisma/client';
+import { PermissionsService } from '../auth/permissions.service';
 
 @Controller()
 export class ProblemsController {
@@ -30,8 +31,15 @@ export class ProblemsController {
   constructor(
     private readonly problemsService: ProblemsService,
     private readonly prismaService: PrismaService,
+    private readonly permissionsService: PermissionsService,
   ) {}
 
+  /**
+   * Get all problems that the user, authenticated or not, can view.
+   * @param req Request object
+   * @param user Logged in user
+   * @returns List of viewable problems with stats
+   */
   @Get('/all')
   @Public()
   @UseGuards(AuthGuard)
@@ -65,6 +73,12 @@ export class ProblemsController {
     });
   }
 
+  /**
+   * Get all problems with their status for the logged in user.
+   * @param req Request object
+   * @param user Logged in user
+   * @returns List of problems with their status
+   */
   @Get('/all/status')
   @UseGuards(AuthGuard)
   async getAllProblemsStatus(@Req() req: Request, @LoggedInUser() user: User) {
@@ -74,6 +88,13 @@ export class ProblemsController {
     );
   }
 
+  /**
+   * Get a specific problem by its slug.
+   * @param req Request object
+   * @param slug Slug of the problem to fetch
+   * @param user Logged in user
+   * @returns Details of the specific problem
+   */
   @Get('/details/:slug')
   @Public()
   @UseGuards(AuthGuard)
@@ -116,6 +137,13 @@ export class ProblemsController {
     return res;
   }
 
+  /**
+   * Create a problem
+   * @param req Request object
+   * @param user Logged in user
+   * @param data Data for the new problem
+   * @returns Details of the specific problem
+   */
   @Post('/new')
   @UseGuards(AuthGuard)
   @Perms([UserPermissions.CREATE_NEW_PROBLEM])
@@ -166,6 +194,13 @@ export class ProblemsController {
     }
   }
 
+  /**
+   * Update the testcase visibility for a problem.
+   * @param problemSlug Slug of the problem to update
+   * @param data Data containing the new visibility setting
+   * @param user Logged in user
+   * @returns Updated testcase visibility setting
+   */
   @Put(':problemSlug/testcase-visibility')
   @UseGuards(AuthGuard)
   async updateTestcaseVisibility(
@@ -174,14 +209,8 @@ export class ProblemsController {
     @LoggedInUser() user: User,
   ) {
     // Get the problem with permission info
-    const problem = await this.prismaService.problem.findUnique({
-      where: { slug: problemSlug },
-      include: {
-        authors: { select: { id: true } },
-        curators: { select: { id: true } },
-        testers: { select: { id: true } },
-      },
-    });
+    const problem =
+      await this.problemsService.findViewableProblemWithSlug(problemSlug);
 
     if (!problem) {
       throw new NotFoundException('PROBLEM_NOT_FOUND');
@@ -209,6 +238,9 @@ export class ProblemsController {
   /**
    * Check if user can edit problem testcases
    * Based on DMOJ's permission model: authors, curators, testers, or EDIT_PROBLEM_TESTS permission
+   * @param problem The problem object containing authors, curators, and testers
+   * @param user The user object to check permissions for
+   * @returns The boolean indicating if the user can edit the problem's test cases
    */
   private canEditProblemTestcases(
     problem: {
@@ -221,7 +253,7 @@ export class ProblemsController {
     // Check if user has global permission
     if (
       user.perms &&
-      this.problemsService['permissionsService'].hasPerms(
+      this.permissionsService.hasPerms(
         user.perms,
         UserPermissions.EDIT_PROBLEM_TESTS,
       )
@@ -230,16 +262,10 @@ export class ProblemsController {
     }
 
     // Check if user is author, curator, or tester
-    const userIsAuthor = problem.authors.some(
-      (author) => author.id === user.id,
-    );
-    const userIsCurator = problem.curators.some(
-      (curator) => curator.id === user.id,
-    );
-    const userIsTester = problem.testers.some(
-      (tester) => tester.id === user.id,
-    );
+    if (problem.authors.some((author) => author.id === user.id)) return true;
+    if (problem.curators.some((curator) => curator.id === user.id)) return true;
+    if (problem.testers.some((tester) => tester.id === user.id)) return true;
 
-    return userIsAuthor || userIsCurator || userIsTester;
+    return false;
   }
 }

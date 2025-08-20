@@ -17,6 +17,11 @@ export class ProblemsService {
   ) {}
   private logger = new Logger(ProblemsService.name);
 
+  /**
+   * Get a list of problems that the user can view.
+   * @param user The user querying the problems.
+   * @returns The list of viewable problems from the user
+   */
   async findViewableProblems(user?: User) {
     const userId = user?.id;
 
@@ -51,6 +56,12 @@ export class ProblemsService {
     });
   }
 
+  /**
+   * Get a problem by slug that the user can view.
+   * @param slug The slug of the problem to find.
+   * @param user The user querying the problem.
+   * @returns The viewable problem with the given slug.
+   */
   async findViewableProblemWithSlug(slug: string, user?: User) {
     const userId = user?.id;
     return await this.prismaService.problem.findFirst({
@@ -81,12 +92,21 @@ export class ProblemsService {
         testEnvironments: true,
         authors: {
           select: {
+            id: true,
             username: true,
             rating: true,
           },
         },
         curators: {
           select: {
+            id: true,
+            username: true,
+            rating: true,
+          },
+        },
+        testers: {
+          select: {
+            id: true,
             username: true,
             rating: true,
           },
@@ -95,8 +115,14 @@ export class ProblemsService {
     });
   }
 
+  /**
+   * Get a problem by ID
+   * @param id The ID of the problem to find.
+   * @param isDeleted Whether to include deleted problems.
+   * @returns The viewable problem with the given ID.
+   */
   async findProblemWithId(id: number, isDeleted: boolean | undefined) {
-    if (!Number.isInteger(id)) throw new BadRequestException('ID_NOT_INTEGER');
+    if (!Number.isInteger(id)) throw new BadRequestException('INVALID_ID');
     const problem = await this.prismaService.problem.findUnique({
       where: {
         id,
@@ -111,6 +137,11 @@ export class ProblemsService {
     return problem;
   }
 
+  /**
+   * Check if a problem exists
+   * @param slug The slug of the problem to check.
+   * @returns The boolean indicating the existence.
+   */
   async exists(slug: string) {
     const prob = await this.prismaService.problem.findUnique({
       where: {
@@ -120,10 +151,15 @@ export class ProblemsService {
     return !!prob;
   }
 
+  /**
+   * Get the basic submission statistics for a batch of problems.
+   * @param ids The IDs of the problems to get statistics for.
+   * @returns An array of objects containing the problem ID, total submissions, and accepted submissions.
+   */
   async getBatchBasicSubStats(ids: number[]) {
     if (ids.length == 0) return [];
     if (ids.some((v) => !Number.isInteger(v)))
-      throw new BadRequestException('ID_NOT_INTEGER'); // prevent xss injection too
+      throw new BadRequestException('INVALID_ID'); // prevent xss injection too
     try {
       // using query raw to optimize performance
       const result: {
@@ -146,8 +182,13 @@ export class ProblemsService {
     }
   }
 
+  /**
+   * Get the basic submission statistics for a single problem.
+   * @param id The ID of the problem to get statistics for.
+   * @returns An object containing the total submissions and accepted submissions.
+   */
   async getBasicSubStats(id: number) {
-    if (!Number.isInteger(id)) throw new BadRequestException('ID_NOT_INTEGER'); // prevent xss injection too
+    if (!Number.isInteger(id)) throw new BadRequestException('INVALID_ID'); // prevent xss injection too
     try {
       // using query raw to optimize performance
       const result: {
@@ -172,6 +213,12 @@ export class ProblemsService {
     }
   }
 
+  /**
+   * Get the status of problems for a user.
+   * @param view_all_probs Whether to view all problems or only those the user can see.
+   * @param userId The ID of the user to get the status for.
+   * @returns A list of problems with their status (solved, attempted).
+   */
   async getProblemsStatusList(view_all_probs: boolean = false, userId: string) {
     // using query raw to optimize performance
     return await this.prismaService.$queryRaw`
@@ -200,6 +247,11 @@ export class ProblemsService {
   `;
   }
 
+  /**
+   * Check if the user has permission to view all problems.
+   * @param user The user to check permissions for.
+   * @returns A boolean indicating whether the user has permission to view all problems.
+   */
   hasViewAllProbsPerms(user?: User) {
     let hasViewAllProbs = false;
     if (

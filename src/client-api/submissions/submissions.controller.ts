@@ -20,6 +20,8 @@ import { User, TestcaseDataVisibility } from '@prisma/client';
 import { Public } from '../auth/auth.decorator';
 import { ProblemsService } from '../problems/problems.service';
 import { SubmissionsService } from './submissions.service';
+import { PermissionsService } from '../auth/permissions.service';
+import { UserPermissions } from 'constants/permissions';
 
 @Controller()
 @UseGuards(AuthGuard)
@@ -32,8 +34,13 @@ export class SubmissionsController {
     private eventEmitter: EventEmitter2,
     private problemsService: ProblemsService,
     private submissionsService: SubmissionsService,
+    private permissionsService: PermissionsService,
   ) {}
 
+  /**
+   * Create a new submission for a problem
+   * Validates problem existence, language support, and user permissions
+   */
   @Post()
   async createSubmission(
     @Body() body: CreateSubmissionDTO,
@@ -69,6 +76,10 @@ export class SubmissionsController {
     };
   }
 
+  /**
+   * Get submissions with pagination and filtering
+   * Supports filtering by author, problem, contestant, and verdict
+   */
   @Get()
   @Public()
   async getSubmissions(@Query() query: SubmissionQueryDTO) {
@@ -134,12 +145,22 @@ export class SubmissionsController {
     };
   }
 
+  /**
+   * Get a specific submission by ID
+   * Includes author, problem details, and test cases
+   * Handles permissions for viewing test case data
+   */
   @Get(':id')
   async getSubmission(@Param('id') id: string, @LoggedInUser() user?: User) {
     const submissionId = parseInt(id, 10);
     if (isNaN(submissionId)) {
       throw new BadRequestException('INVALID_SUBMISSION');
     }
+
+    const hasViewCodePerms = this.permissionsService.hasPerms(
+      user?.perms || 0n,
+      UserPermissions.VIEW_SUBMISSION_CODE,
+    );
 
     const submission = await this.prisma.submission.findUnique({
       where: { id: submissionId },
@@ -174,6 +195,9 @@ export class SubmissionsController {
             host: true,
           },
         },
+      },
+      omit: {
+        code: !hasViewCodePerms, // Only include code if user has permission
       },
     });
 
@@ -230,11 +254,15 @@ export class SubmissionsController {
     };
   }
 
+  /**
+   * Get the status of a specific submission
+   * Includes verdict, points, time, memory, and test case results
+   */
   @Get(':id/status')
   async getSubmissionStatus(@Param('id') id: string) {
     const submissionId = parseInt(id, 10);
     if (isNaN(submissionId)) {
-      throw new BadRequestException('INVALID_SUBMISSION_ID');
+      throw new BadRequestException('INVALID_SUBMISSION');
     }
 
     const submission = await this.prisma.submission.findUnique({
@@ -273,6 +301,10 @@ export class SubmissionsController {
     };
   }
 
+  /**
+   * Get the current status of the submission queue
+   * Returns number of submissions in queue, processing, and total
+   */
   @Get('queue/status')
   async getQueueStatus() {
     const status = await this.queueService.getQueueStatus();
