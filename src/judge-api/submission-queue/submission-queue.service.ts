@@ -54,6 +54,9 @@ export class SubmissionQueueService {
     return queueEntry;
   }
 
+  // Track submissions currently being processed to avoid duplicate processing
+  private readonly processingSubmissions = new Set<number>();
+
   async getNextSubmission(): Promise<
     | (SubmissionQueue & {
         submission: Submission & { problem: any; author: any };
@@ -64,6 +67,9 @@ export class SubmissionQueueService {
       where: {
         attempts: {
           lt: 3, // max attempts
+        },
+        submissionId: {
+          notIn: Array.from(this.processingSubmissions), // Exclude already processing submissions
         },
       },
       orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
@@ -111,6 +117,9 @@ export class SubmissionQueueService {
           submission: true,
         },
       });
+
+      // Mark submission as being processed
+      this.processingSubmissions.add(result.submissionId);
 
       // Update submission status
       await this.prisma.submission.update({
@@ -168,6 +177,9 @@ export class SubmissionQueueService {
     // Free up judge (remove from busy set)
     this.busyJudges.delete(judgeName);
 
+    // Remove from processing set
+    this.processingSubmissions.delete(submissionId);
+
     this.logger.log(
       `Submission ${submissionId} completed with verdict ${verdict}, judge ${judgeName} freed`,
     );
@@ -186,8 +198,9 @@ export class SubmissionQueueService {
 
     if (!queueEntry) {
       this.logger.error(`Queue entry not found for submission ${submissionId}`);
-      // Still free up the judge in case it was assigned
+      // Still free up the judge and submission in case it was assigned
       this.busyJudges.delete(judgeName);
+      this.processingSubmissions.delete(submissionId);
       return;
     }
 
@@ -202,8 +215,9 @@ export class SubmissionQueueService {
         },
       );
     } else {
-      // Free up judge for retry
+      // Free up judge and submission for retry
       this.busyJudges.delete(judgeName);
+      this.processingSubmissions.delete(submissionId);
 
       // Reset submission status for retry
       await this.prisma.submission.update({
@@ -262,18 +276,34 @@ export class SubmissionQueueService {
     return this.busyJudges.size;
   }
 
+  getProcessingSubmissionsCount(): number {
+    return this.processingSubmissions.size;
+  }
+
+  isSubmissionBeingProcessed(submissionId: number): boolean {
+    return this.processingSubmissions.has(submissionId);
+  }
+
   async getQueueStatus(): Promise<{
     queued: number;
     judging: number;
     availableJudges: number;
     totalConnectedJudges: number;
+    processingSubmissions: number;
   }> {
     const queued = await this.prisma.submissionQueue.count();
 
     const totalConnectedJudges = this.dmojBridge.getConnectedJudges().length;
     const judging = this.busyJudges.size;
     const availableJudges = totalConnectedJudges - judging;
+    const processingSubmissions = this.processingSubmissions.size;
 
-    return { queued, judging, availableJudges, totalConnectedJudges };
+    return {
+      queued,
+      judging,
+      availableJudges,
+      totalConnectedJudges,
+      processingSubmissions,
+    };
   }
 }
