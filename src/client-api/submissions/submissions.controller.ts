@@ -196,10 +196,14 @@ export class SubmissionsController {
           },
         },
       },
-      omit: {
-        code: !hasViewCodePerms, // Only include code if user has permission
-      },
     });
+
+    if (
+      submission?.authorId !== user?.id &&
+      !hasViewCodePerms &&
+      submission?.code
+    )
+      submission.code = '';
 
     if (!submission) {
       throw new NotFoundException('SUBMISSION_NOT_FOUND');
