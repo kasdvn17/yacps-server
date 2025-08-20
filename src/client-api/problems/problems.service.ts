@@ -265,4 +265,17 @@ export class ProblemsService {
       hasViewAllProbs = true;
     return hasViewAllProbs;
   }
+
+  async hasACProb(user?: User, problemId?: number): Promise<boolean> {
+    if (!user || !problemId) return false;
+    return await this.prismaService.submission
+      .count({
+        where: {
+          authorId: user.id,
+          problemId,
+          verdict: 'AC',
+        },
+      })
+      .then((count) => count > 0);
+  }
 }

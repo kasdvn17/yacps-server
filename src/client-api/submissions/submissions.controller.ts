@@ -210,7 +210,7 @@ export class SubmissionsController {
     }
 
     // Check if user can see test case data (input/output/expected)
-    const canSeeTestcaseData = this.canUserSeeTestcaseData(
+    const canSeeTestcaseData = await this.canUserSeeTestcaseData(
       submission.problem,
       user,
     );
@@ -322,15 +322,16 @@ export class SubmissionsController {
    * Check if user can see test case data (input/output/expected)
    * Based on DMOJ's testcase visibility model
    */
-  private canUserSeeTestcaseData(
+  private async canUserSeeTestcaseData(
     problem: {
+      id: number;
       testcaseDataVisibility: TestcaseDataVisibility;
       authors: { id: string }[];
       curators: { id: string }[];
       testers: { id: string }[];
     },
     user?: User,
-  ): boolean {
+  ): Promise<boolean> {
     // If testcase data is visible to everyone
     if (problem.testcaseDataVisibility === TestcaseDataVisibility.EVERYONE) {
       return true;
@@ -341,17 +342,14 @@ export class SubmissionsController {
       return false;
     }
 
-    // Check if user is author, curator, or tester
-    const userIsAuthor = problem.authors.some(
-      (author) => author.id === user.id,
-    );
-    const userIsCurator = problem.curators.some(
-      (curator) => curator.id === user.id,
-    );
-    const userIsTester = problem.testers.some(
-      (tester) => tester.id === user.id,
-    );
+    if (problem.testcaseDataVisibility === TestcaseDataVisibility.AC_ONLY)
+      return await this.problemsService.hasACProb(user, problem.id);
 
-    return userIsAuthor || userIsCurator || userIsTester;
+    // Check if user is author, curator, or tester
+    if (problem.authors.some((author) => author.id === user.id)) return true;
+    if (problem.curators.some((curator) => curator.id === user.id)) return true;
+    if (problem.testers.some((tester) => tester.id === user.id)) return true;
+
+    return false;
   }
 }
