@@ -121,7 +121,6 @@ export class SubmissionsController {
           maxTime: true,
           maxMemory: true,
           createdAt: true,
-          updatedAt: true,
         },
       }),
       this.prisma.submission.count({ where }),
