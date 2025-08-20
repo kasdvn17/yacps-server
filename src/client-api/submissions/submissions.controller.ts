@@ -99,10 +99,9 @@ export class SubmissionsController {
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
-        include: {
+        select: {
           author: {
             select: {
-              id: true,
               username: true,
               fullname: true,
               rating: true,
@@ -110,24 +109,19 @@ export class SubmissionsController {
           },
           problem: {
             select: {
-              id: true,
               slug: true,
               name: true,
               points: true,
             },
           },
-          testCases: {
-            select: {
-              caseNumber: true,
-              verdict: true,
-              time: true,
-              memory: true,
-              points: true,
-            },
-          },
-        },
-        omit: {
-          code: true,
+          id: true,
+          language: true,
+          verdict: true,
+          points: true,
+          maxTime: true,
+          maxMemory: true,
+          createdAt: true,
+          updatedAt: true,
         },
       }),
       this.prisma.submission.count({ where }),
