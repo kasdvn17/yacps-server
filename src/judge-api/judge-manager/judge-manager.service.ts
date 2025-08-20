@@ -167,22 +167,15 @@ export class JudgeManagerService implements OnModuleInit {
   @OnEvent('submission.compile-error')
   async handleCompileError(data: {
     judgeId: string;
+    judgeName: string;
     submissionId: number;
     error: string;
   }) {
     this.logger.debug(`Compile error for submission ${data.submissionId}`);
 
-    // Get judge name from database
-    const judge = await this.prisma.judge.findUnique({
-      where: { id: data.judgeId },
-      select: { name: true },
-    });
-
-    const judgeName = judge?.name || 'unknown';
-
     await this.queueService.completeSubmission(
       data.submissionId,
-      judgeName,
+      data.judgeName,
       SubmissionVerdict.CE,
       { errorMessage: data.error },
     );
@@ -327,7 +320,11 @@ export class JudgeManagerService implements OnModuleInit {
    * Handle grading completion
    */
   @OnEvent('submission.grading-end')
-  async handleGradingEnd(data: { judgeId: string; submissionId: number }) {
+  async handleGradingEnd(data: {
+    judgeId: string;
+    judgeName: string;
+    submissionId: number;
+  }) {
     this.logger.debug(`Grading completed for submission ${data.submissionId}`);
 
     // Get submission with problem info for points calculation
@@ -410,17 +407,9 @@ export class JudgeManagerService implements OnModuleInit {
       `Final verdict for submission ${data.submissionId}: ${finalVerdict} (${casePoints}/${caseTotal} → ${submissionPoints}/${submission.problem.points})`,
     );
 
-    // Get judge name from database
-    const judge = await this.prisma.judge.findUnique({
-      where: { id: data.judgeId },
-      select: { name: true },
-    });
-
-    const judgeName = judge?.name || 'unknown';
-
     await this.queueService.completeSubmission(
       data.submissionId,
-      judgeName,
+      data.judgeName,
       finalVerdict,
       {
         points: submissionPoints,
@@ -447,21 +436,14 @@ export class JudgeManagerService implements OnModuleInit {
   @OnEvent('submission.aborted')
   async handleSubmissionAborted(data: {
     judgeId: string;
+    judgeName: string;
     submissionId: number;
   }) {
     this.logger.debug(`Submission ${data.submissionId} was aborted`);
 
-    // Get judge name from database
-    const judge = await this.prisma.judge.findUnique({
-      where: { id: data.judgeId },
-      select: { name: true },
-    });
-
-    const judgeName = judge?.name || 'unknown';
-
     await this.queueService.completeSubmission(
       data.submissionId,
-      judgeName,
+      data.judgeName,
       SubmissionVerdict.AB,
     );
 
