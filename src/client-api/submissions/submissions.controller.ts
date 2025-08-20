@@ -342,8 +342,21 @@ export class SubmissionsController {
       return false;
     }
 
-    if (problem.testcaseDataVisibility === TestcaseDataVisibility.AC_ONLY)
-      return await this.problemsService.hasACProb(user, problem.id);
+    if (
+      user.perms &&
+      this.permissionsService.hasPerms(
+        user.perms,
+        UserPermissions.EDIT_PROBLEM_TESTS,
+      )
+    ) {
+      return true;
+    }
+
+    if (
+      problem.testcaseDataVisibility === TestcaseDataVisibility.AC_ONLY &&
+      (await this.problemsService.hasACProb(user, problem.id))
+    )
+      return true;
 
     // Check if user is author, curator, or tester
     if (problem.authors.some((author) => author.id === user.id)) return true;
