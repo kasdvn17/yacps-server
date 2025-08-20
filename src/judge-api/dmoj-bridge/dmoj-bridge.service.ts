@@ -517,8 +517,10 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
 
   private handleCompileError(judgeId: string, data: any): void {
     this.logger.debug(`Compile error from judge ${judgeId}:`, data);
+    const judgeName = this.getJudgeNameFromConnectionId(judgeId) || 'unknown';
     this.eventEmitter.emit('submission.compile-error', {
       judgeId,
+      judgeName,
       submissionId: data['submission-id'],
       error: data.log,
     });
@@ -544,8 +546,10 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
 
   private handleGradingEnd(judgeId: string, data: any): void {
     this.logger.debug(`Grading end from judge ${judgeId}:`, data);
+    const judgeName = this.getJudgeNameFromConnectionId(judgeId) || 'unknown';
     this.eventEmitter.emit('submission.grading-end', {
       judgeId,
+      judgeName,
       submissionId: data['submission-id'],
     });
   }
@@ -620,8 +624,10 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
 
   private handleSubmissionAborted(judgeId: string, data: any): void {
     this.logger.debug(`Submission aborted from judge ${judgeId}:`, data);
+    const judgeName = this.getJudgeNameFromConnectionId(judgeId) || 'unknown';
     this.eventEmitter.emit('submission.aborted', {
       judgeId,
+      judgeName,
       submissionId: data['submission-id'],
     });
   }
@@ -661,6 +667,13 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
    */
   getConnectedJudges(): string[] {
     return Array.from(this.connectedJudgeNames);
+  }
+
+  /**
+   * Get judge name from connection ID
+   */
+  getJudgeNameFromConnectionId(connectionId: string): string | null {
+    return this.connectionIdToJudgeName.get(connectionId) || null;
   }
 
   /**
