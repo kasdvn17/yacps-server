@@ -244,7 +244,7 @@ export class UsersController {
 
       // Transform submissions to match frontend interface
       const transformedSubmissions = submissions.map((submission) => ({
-        problemCode: submission.problem.slug,
+        problemSlug: submission.problem.slug,
         problemName: submission.problem.name,
         problemCategory: submission.problem.category?.name || 'Uncategorized',
         status: submission.verdict || 'QU',
