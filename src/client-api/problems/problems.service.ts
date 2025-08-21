@@ -266,6 +266,42 @@ export class ProblemsService {
     return hasViewAllProbs;
   }
 
+  /**
+   * Check if the user can view a specific problem.
+   * @param user The user to check permissions for.
+   * @param problem The problem to check.
+   * @returns A boolean indicating whether the user can view the problem.
+   */
+  viewableProblem(
+    user?: User,
+    problem?: {
+      isPublic: boolean;
+      isDeleted: boolean;
+      authors: { id: string }[];
+      curators: { id: string }[];
+      testers: { id: string }[];
+    },
+  ) {
+    if (!problem) return false;
+    if (this.hasViewAllProbsPerms(user)) return true;
+
+    if (user) {
+      if (problem.isPublic && !problem.isDeleted) return true;
+      if (problem.authors.some((a) => a.id === user.id)) return true;
+      if (problem.curators.some((c) => c.id === user.id)) return true;
+      if (problem.testers.some((t) => t.id === user.id)) return true;
+    } else {
+      if (problem.isPublic && !problem.isDeleted) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Check if the user has solved a problem.
+   * @param user The user to check.
+   * @param problemId The ID of the problem to check.
+   * @returns A boolean indicating whether the user has solved the problem.
+   */
   async hasACProb(user?: User, problemId?: number): Promise<boolean> {
     if (!user || !problemId) return false;
     return await this.prismaService.submission

@@ -29,6 +29,10 @@ export class CreateSubmissionDTO {
 
 export class SubmissionQueryDTO {
   @IsOptional()
+  @IsInt()
+  problemSlug?: string;
+
+  @IsOptional()
   @IsString()
   authorId?: string;
 
