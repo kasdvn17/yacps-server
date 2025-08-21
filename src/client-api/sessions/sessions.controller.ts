@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Logger,
   NotFoundException,
@@ -81,7 +82,6 @@ export class SessionsController {
     const user = await this.usersService.findUser(
       {
         email: body.email,
-        status: 'ACTIVE',
         isDeleted: false,
       },
       false,
@@ -92,6 +92,13 @@ export class SessionsController {
     if (!(await this.argon2Service.comparePassword(body.password, hashed)))
       throw new NotFoundException('INCORRECT_CREDENTIALS');
     // Use clientIp from payload, fallback to 'unknown' if not provided
+
+    if (user.status == 'CONF_AWAITING')
+      throw new ForbiddenException('ACCOUNT_AWAITING_CONFIRMATION');
+    if (user.status == 'BANNED') throw new ForbiddenException('ACCOUNT_BANNED');
+    if (user.status == 'DISABLED')
+      throw new ForbiddenException('ACCOUNT_DISABLED');
+
     let clientIp = body.clientIp;
     if (!clientIp && Config.ENABLE_CAPTCHA) clientIp = 'unknown';
 
