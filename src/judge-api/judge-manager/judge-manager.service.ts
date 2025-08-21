@@ -365,7 +365,7 @@ export class JudgeManagerService implements OnModuleInit {
       [SubmissionVerdict.OLE]: 3,
       [SubmissionVerdict.MLE]: 4,
       [SubmissionVerdict.TLE]: 5,
-      [SubmissionVerdict.RE]: 6,
+      [SubmissionVerdict.RTE]: 6,
       [SubmissionVerdict.CE]: 7,
       [SubmissionVerdict.ISE]: 8,
       [SubmissionVerdict.AB]: 9,
@@ -484,7 +484,7 @@ export class JudgeManagerService implements OnModuleInit {
     const DMOJ_STATUS = {
       AC: 0, // Accepted
       WA: 1 << 0, // Wrong Answer = 1
-      RE: 1 << 1, // Runtime Error = 2
+      RTE: 1 << 1, // Runtime Error = 2
       TLE: 1 << 2, // Time Limit Exceeded = 4
       MLE: 1 << 3, // Memory Limit Exceeded = 8
       IR: 1 << 4, // Invalid Return = 16
@@ -499,7 +499,7 @@ export class JudgeManagerService implements OnModuleInit {
     if (status & DMOJ_STATUS.TLE) return SubmissionVerdict.TLE;
     if (status & DMOJ_STATUS.MLE) return SubmissionVerdict.MLE;
     if (status & DMOJ_STATUS.OLE) return SubmissionVerdict.OLE;
-    if (status & DMOJ_STATUS.RE) return SubmissionVerdict.RE;
+    if (status & DMOJ_STATUS.RTE) return SubmissionVerdict.RTE;
     if (status & DMOJ_STATUS.IR) return SubmissionVerdict.IR;
     if (status & DMOJ_STATUS.WA) return SubmissionVerdict.WA;
     if (status & DMOJ_STATUS.SC) return SubmissionVerdict.SK; // Skipped
