@@ -17,7 +17,7 @@ import { SubmissionQueueService } from '@/judge-api/submission-queue/submission-
 import { CreateSubmissionDTO, SubmissionQueryDTO } from './dto/submission.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { LoggedInUser } from '../users/users.decorator';
-import { User, TestcaseDataVisibility } from '@prisma/client';
+import { User } from '@prisma/client';
 import { Public } from '../auth/auth.decorator';
 import { ProblemsService } from '../problems/problems.service';
 import { SubmissionsService } from './submissions.service';
@@ -62,6 +62,8 @@ export class SubmissionsController {
       throw new BadRequestException('LANGUAGE_NOT_SUPPORTED');
     }
 
+    if (!this.problemsService.viewableProblem(user, problem))
+      throw new ForbiddenException('PROBLEM_NOT_VIEWABLE');
     if (problem.isLocked) throw new ForbiddenException('PROBLEM_LOCKED');
 
     const submission = await this.submissionsService.createSubmission(
@@ -85,15 +87,22 @@ export class SubmissionsController {
    */
   @Get()
   @Public()
-  async getSubmissions(@Query() query: SubmissionQueryDTO) {
+  async getSubmissions(
+    @Query() query: SubmissionQueryDTO,
+    @LoggedInUser() user?: User,
+  ) {
     const { page = 1, limit = 20, ...filters } = query;
     const skip = (page - 1) * limit;
 
     const where: any = {
+      ...(filters.problemSlug && { problem: { slug: filters.problemSlug } }),
       ...(filters.authorId && { authorId: filters.authorId }),
       ...(filters.problemId && { problemId: filters.problemId }),
       ...(filters.contestantId && { contestantId: filters.contestantId }),
       ...(filters.verdict && { verdict: filters.verdict as any }),
+      // Only show submissions with viewable problems
+      problem:
+        this.submissionsService.getViewableSubmissionWhereProblemQuery(user),
     };
 
     const [submissions, total] = await Promise.all([
@@ -147,6 +156,7 @@ export class SubmissionsController {
    * Handles permissions for viewing test case data
    */
   @Get(':id')
+  @Public()
   async getSubmission(@Param('id') id: string, @LoggedInUser() user?: User) {
     const submissionId = parseInt(id, 10);
     if (isNaN(submissionId)) {
@@ -159,7 +169,11 @@ export class SubmissionsController {
     );
 
     const submission = await this.prisma.submission.findUnique({
-      where: { id: submissionId },
+      where: {
+        id: submissionId,
+        problem:
+          this.submissionsService.getViewableSubmissionWhereProblemQuery(user),
+      },
       include: {
         author: {
           select: {
@@ -176,6 +190,8 @@ export class SubmissionsController {
             points: true,
             testEnvironments: true,
             testcaseDataVisibility: true,
+            isPublic: true,
+            isDeleted: true,
             authors: { select: { id: true } },
             curators: { select: { id: true } },
             testers: { select: { id: true } },
@@ -187,6 +203,13 @@ export class SubmissionsController {
       },
     });
 
+    if (!submission) {
+      throw new NotFoundException('SUBMISSION_NOT_FOUND');
+    }
+
+    if (!this.problemsService.viewableProblem(user, submission.problem))
+      throw new ForbiddenException('SUBMISSION_NOT_VIEWABLE');
+
     if (
       submission?.authorId !== user?.id &&
       !hasViewCodePerms &&
@@ -194,15 +217,12 @@ export class SubmissionsController {
     )
       submission.code = '';
 
-    if (!submission) {
-      throw new NotFoundException('SUBMISSION_NOT_FOUND');
-    }
-
     // Check if user can see test case data (input/output/expected)
-    const canSeeTestcaseData = await this.canUserSeeTestcaseData(
-      submission.problem,
-      user,
-    );
+    const canSeeTestcaseData =
+      await this.submissionsService.canUserSeeTestcaseData(
+        submission.problem,
+        user,
+      );
 
     // Get problem test cases if user has permission to see test case data
     let problemTestCases: any[] = [];
@@ -257,14 +277,22 @@ export class SubmissionsController {
    * Includes verdict, points, time, memory, and test case results
    */
   @Get(':id/status')
-  async getSubmissionStatus(@Param('id') id: string) {
+  @Public()
+  async getSubmissionStatus(
+    @Param('id') id: string,
+    @LoggedInUser() user?: User,
+  ) {
     const submissionId = parseInt(id, 10);
     if (isNaN(submissionId)) {
       throw new BadRequestException('INVALID_SUBMISSION');
     }
 
     const submission = await this.prisma.submission.findUnique({
-      where: { id: submissionId },
+      where: {
+        id: submissionId,
+        problem:
+          this.submissionsService.getViewableSubmissionWhereProblemQuery(user),
+      },
       select: {
         id: true,
         verdict: true,
@@ -286,13 +314,29 @@ export class SubmissionsController {
           },
           orderBy: { caseNumber: 'asc' },
         },
+        problem: {
+          select: {
+            isPublic: true,
+            isDeleted: true,
+            authors: {
+              select: { id: true },
+            },
+            curators: {
+              select: { id: true },
+            },
+            testers: {
+              select: { id: true },
+            },
+          },
+        },
       },
     });
 
     if (!submission) {
       throw new NotFoundException('SUBMISSION_NOT_FOUND');
     }
-
+    if (!this.problemsService.viewableProblem(user, submission.problem))
+      throw new ForbiddenException('SUBMISSION_NOT_VIEWABLE');
     return {
       success: true,
       data: submission,
@@ -310,53 +354,5 @@ export class SubmissionsController {
       success: true,
       data: status,
     };
-  }
-
-  /**
-   * Check if user can see test case data (input/output/expected)
-   * Based on DMOJ's testcase visibility model
-   */
-  private async canUserSeeTestcaseData(
-    problem: {
-      id: number;
-      testcaseDataVisibility: TestcaseDataVisibility;
-      authors: { id: string }[];
-      curators: { id: string }[];
-      testers: { id: string }[];
-    },
-    user?: User,
-  ): Promise<boolean> {
-    // If testcase data is visible to everyone
-    if (problem.testcaseDataVisibility === TestcaseDataVisibility.EVERYONE) {
-      return true;
-    }
-
-    // If user is not authenticated, they can't see restricted data
-    if (!user) {
-      return false;
-    }
-
-    if (
-      user.perms &&
-      this.permissionsService.hasPerms(
-        user.perms,
-        UserPermissions.EDIT_PROBLEM_TESTS,
-      )
-    ) {
-      return true;
-    }
-
-    if (
-      problem.testcaseDataVisibility === TestcaseDataVisibility.AC_ONLY &&
-      (await this.problemsService.hasACProb(user, problem.id))
-    )
-      return true;
-
-    // Check if user is author, curator, or tester
-    if (problem.authors.some((author) => author.id === user.id)) return true;
-    if (problem.curators.some((curator) => curator.id === user.id)) return true;
-    if (problem.testers.some((tester) => tester.id === user.id)) return true;
-
-    return false;
   }
 }

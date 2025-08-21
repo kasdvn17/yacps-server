@@ -6,7 +6,10 @@ import {
   Logger,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Problem, User } from '@prisma/client';
+import { Problem, TestcaseDataVisibility, User } from '@prisma/client';
+import { PermissionsService } from '../auth/permissions.service';
+import { UserPermissions } from 'constants/permissions';
+import { ProblemsService } from '../problems/problems.service';
 
 @Injectable()
 export class SubmissionsService {
@@ -16,6 +19,8 @@ export class SubmissionsService {
     private prismaService: PrismaService,
     private queueService: SubmissionQueueService,
     private eventEmitter: EventEmitter2,
+    private permissionsService: PermissionsService,
+    private problemsService: ProblemsService,
   ) {}
 
   /**
@@ -84,5 +89,75 @@ export class SubmissionsService {
     } catch (err) {
       throw new InternalServerErrorException('UNKNOWN_ERROR', err);
     }
+  }
+
+  /**
+   * Check if user can see test case data (input/output/expected)
+   * Based on DMOJ's testcase visibility model
+   */
+  async canUserSeeTestcaseData(
+    problem: {
+      id: number;
+      testcaseDataVisibility: TestcaseDataVisibility;
+      authors: { id: string }[];
+      curators: { id: string }[];
+      testers: { id: string }[];
+    },
+    user?: User,
+  ): Promise<boolean> {
+    // If testcase data is visible to everyone
+    if (problem.testcaseDataVisibility === TestcaseDataVisibility.EVERYONE) {
+      return true;
+    }
+
+    // If user is not authenticated, they can't see restricted data
+    if (!user) {
+      return false;
+    }
+
+    if (
+      user.perms &&
+      this.permissionsService.hasPerms(
+        user.perms,
+        UserPermissions.EDIT_PROBLEM_TESTS,
+      )
+    ) {
+      return true;
+    }
+
+    if (
+      problem.testcaseDataVisibility === TestcaseDataVisibility.AC_ONLY &&
+      (await this.problemsService.hasACProb(user, problem.id))
+    )
+      return true;
+
+    // Check if user is author, curator, or tester
+    if (problem.authors.some((author) => author.id === user.id)) return true;
+    if (problem.curators.some((curator) => curator.id === user.id)) return true;
+    if (problem.testers.some((tester) => tester.id === user.id)) return true;
+
+    return false;
+  }
+
+  getViewableSubmissionWhereProblemQuery(user?: User) {
+    if (!user) {
+      return {
+        isDeleted: false,
+        isPublic: true,
+      };
+    }
+
+    // If user has view all problems permissions, they can see all submissions
+    if (this.problemsService.hasViewAllProbsPerms(user)) return {};
+
+    // Otherwise, only view public submissions
+    return {
+      OR: [
+        { isPublic: true, isDeleted: false },
+        { authors: { some: { id: user.id } } },
+        { curators: { some: { id: user.id } } },
+        { testers: { some: { id: user.id } } },
+      ],
+    };
   }
 }
