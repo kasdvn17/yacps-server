@@ -50,6 +50,7 @@ export class SubmissionsController {
     // Check if problem exists and is accessible
     const problem = await this.problemsService.findViewableProblemWithSlug(
       body.problemSlug,
+      user,
     );
 
     if (!problem) {

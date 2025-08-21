@@ -210,12 +210,20 @@ export class ProblemsController {
     @LoggedInUser() user: User,
   ) {
     // Get the problem with permission info
-    const problem =
-      await this.problemsService.findViewableProblemWithSlug(problemSlug);
+    const problem = await this.problemsService.findViewableProblemWithSlug(
+      problemSlug,
+      user,
+    );
 
     if (!problem) {
       throw new NotFoundException('PROBLEM_NOT_FOUND');
     }
+
+    if (problem.isLocked)
+      throw new ForbiddenException('PROBLEM_LOCKED', {
+        description:
+          'Modifications to this problem are restricted. Please contact an administrator for further assistance.',
+      });
 
     // Check if user can edit this problem's test cases
     if (!this.canEditProblemTestcases(problem, user)) {
