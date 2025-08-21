@@ -29,7 +29,7 @@ export class CreateSubmissionDTO {
 
 export class SubmissionQueryDTO {
   @IsOptional()
-  @IsInt()
+  @IsString()
   problemSlug?: string;
 
   @IsOptional()
