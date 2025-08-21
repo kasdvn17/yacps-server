@@ -39,6 +39,10 @@ export class AuthGuard implements CanActivate {
           await this.sessionsService.deleteSession(session.id);
           throw new UnauthorizedException('INVALID_TOKEN');
         }
+        if (session.user.status != 'ACTIVE' || session.user.isDeleted) {
+          await this.sessionsService.deleteSession(session.id);
+          throw new UnauthorizedException('INVALID_TOKEN');
+        }
 
         if (requiredPerms && requiredPerms.length > 0) {
           const missingPerms = requiredPerms.filter(
