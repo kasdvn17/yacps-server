@@ -17,7 +17,7 @@ import { SubmissionQueueService } from '@/judge-api/submission-queue/submission-
 import { CreateSubmissionDTO, SubmissionQueryDTO } from './dto/submission.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { LoggedInUser } from '../users/users.decorator';
-import { User } from '@prisma/client';
+import { SubmissionVerdict, User } from '@prisma/client';
 import { Public } from '../auth/auth.decorator';
 import { ProblemsService } from '../problems/problems.service';
 import { SubmissionsService } from './submissions.service';
@@ -94,12 +94,15 @@ export class SubmissionsController {
     const { page = 1, limit = 20, ...filters } = query;
     const skip = (page - 1) * limit;
 
+    if (filters.verdict && !(filters.verdict in SubmissionVerdict))
+      throw new BadRequestException('INVALID_VERDICT');
+
     const where: any = {
       ...(filters.problemSlug && { problem: { slug: filters.problemSlug } }),
       ...(filters.authorId && { authorId: filters.authorId }),
       ...(filters.problemId && { problemId: filters.problemId }),
       ...(filters.contestantId && { contestantId: filters.contestantId }),
-      ...(filters.verdict && { verdict: filters.verdict as any }),
+      ...(filters.verdict && { verdict: filters.verdict as SubmissionVerdict }),
       // Only show submissions with viewable problems
       problem:
         this.submissionsService.getViewableSubmissionWhereProblemQuery(user),
