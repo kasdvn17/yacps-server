@@ -365,7 +365,7 @@ export class JudgeManagerService implements OnModuleInit {
       [SubmissionVerdict.OLE]: 3,
       [SubmissionVerdict.MLE]: 4,
       [SubmissionVerdict.TLE]: 5,
-      [SubmissionVerdict.RTE]: 6,
+      [SubmissionVerdict.RE]: 6,
       [SubmissionVerdict.CE]: 7,
       [SubmissionVerdict.ISE]: 8,
       [SubmissionVerdict.AB]: 9,
@@ -484,7 +484,7 @@ export class JudgeManagerService implements OnModuleInit {
     const DMOJ_STATUS = {
       AC: 0, // Accepted
       WA: 1 << 0, // Wrong Answer = 1
-      RTE: 1 << 1, // Runtime Error = 2
+      RE: 1 << 1, // Runtime Error = 2
       TLE: 1 << 2, // Time Limit Exceeded = 4
       MLE: 1 << 3, // Memory Limit Exceeded = 8
       IR: 1 << 4, // Invalid Return = 16
@@ -493,13 +493,13 @@ export class JudgeManagerService implements OnModuleInit {
       IE: 1 << 30, // Internal Error = 1073741824
     };
 
-    // Priority order from DMOJ CODE_DISPLAY_ORDER: ('IE', 'TLE', 'MLE', 'OLE', 'RTE', 'IR', 'WA', 'SC')
+    // Priority order from DMOJ CODE_DISPLAY_ORDER: ('IE', 'TLE', 'MLE', 'OLE', 'RE', 'IR', 'WA', 'SC')
     // Check in priority order - return the first matching flag
     if (status & DMOJ_STATUS.IE) return SubmissionVerdict.ISE;
     if (status & DMOJ_STATUS.TLE) return SubmissionVerdict.TLE;
     if (status & DMOJ_STATUS.MLE) return SubmissionVerdict.MLE;
     if (status & DMOJ_STATUS.OLE) return SubmissionVerdict.OLE;
-    if (status & DMOJ_STATUS.RTE) return SubmissionVerdict.RTE;
+    if (status & DMOJ_STATUS.RE) return SubmissionVerdict.RE;
     if (status & DMOJ_STATUS.IR) return SubmissionVerdict.IR;
     if (status & DMOJ_STATUS.WA) return SubmissionVerdict.WA;
     if (status & DMOJ_STATUS.SC) return SubmissionVerdict.SK; // Skipped

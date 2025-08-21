@@ -192,7 +192,7 @@ enum SubmissionVerdict {
   QU // In Queue
   IR // Invalid Return
   CE // Compile Error
-  RTE // Runtime Error
+  RE // Runtime Error
   OLE // Output limit exceeded
   TLE // Time limit exceeded
   MLE // Memory limit exceeded
