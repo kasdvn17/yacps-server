@@ -37,6 +37,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   private connectedJudgeNames = new Set<string>(); // Judge names that are connected
   private connectionIdToJudgeName = new Map<string, string>(); // connection ID -> judge name
   private judgeNameToIdInDB = new Map<string, string>(); // judge name -> judge ID in database
+  private judgePingIntervals = new Map<string, NodeJS.Timeout>(); // Track ping intervals for each judge
   private tcpServer: net.Server;
   private readonly port: number;
   private readonly listeningAddress: string;
@@ -123,6 +124,14 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
         this.logger.log(
           `Removed ${judgeName} from connected judges. Total connected: ${this.connectedJudgeNames.size}`,
         );
+
+        // Stop ping interval for this judge
+        const pingInterval = this.judgePingIntervals.get(judgeConnectionId);
+        if (pingInterval) {
+          clearInterval(pingInterval);
+          this.judgePingIntervals.delete(judgeConnectionId);
+          this.logger.debug(`Stopped ping interval for judge ${judgeName}`);
+        }
       }
 
       this.judgeConnections.delete(judgeConnectionId);
@@ -137,6 +146,13 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       if (judgeName) {
         this.connectedJudgeNames.delete(judgeName);
         this.connectionIdToJudgeName.delete(judgeConnectionId);
+
+        // Stop ping interval for this judge
+        const pingInterval = this.judgePingIntervals.get(judgeConnectionId);
+        if (pingInterval) {
+          clearInterval(pingInterval);
+          this.judgePingIntervals.delete(judgeConnectionId);
+        }
       }
 
       this.judgeConnections.delete(judgeConnectionId);
@@ -274,9 +290,6 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
         break;
       case 'submission-acknowledged':
         this.handleSubmissionAcknowledged(judgeConnectionId, packet);
-        break;
-      case 'ping':
-        this.handlePing(judgeConnectionId, packet);
         break;
       case 'ping-response':
         this.handlePingResponse(judgeConnectionId, packet);
@@ -537,6 +550,9 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
         );
       }
 
+      // Start ping thread to send pings to judge every 10 seconds (like DMOJ bridge does)
+      this.startPingThread(judgeConnectionId, judgeName);
+
       // Emit event for successful authentication
       this.eventEmitter.emit('judge.authenticated', {
         judgeConnectionId: judgeConnectionId,
@@ -768,48 +784,66 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  private handlePing(judgeConnectionId: string, packet: any): void {
-    this.logger.debug(`📍 Ping from judge ${judgeConnectionId}:`, packet);
-
-    // Respond to ping with ping-response
-    const socket = this.judgeConnections.get(judgeConnectionId);
-    if (!socket) {
-      this.logger.error(
-        `No connection to judge ${judgeConnectionId} for ping response`,
-      );
-      return;
-    }
-
-    try {
-      const pingResponse = {
-        name: 'ping-response',
-        when: packet.when || Date.now() / 1000, // Use judge's timestamp or current time
-        time: Date.now() / 1000, // Current server time
-        load: 1.0, // Server load (can be made dynamic)
-      };
-
-      const jsonData = JSON.stringify(pingResponse);
-      const compressed = zlib.deflateSync(Buffer.from(jsonData));
-      const size = Buffer.allocUnsafe(4);
-      size.writeUInt32BE(compressed.length, 0);
-
-      socket.write(Buffer.concat([size, compressed]));
-      this.logger.debug(`📍 Sent ping-response to judge ${judgeConnectionId}`);
-    } catch (error) {
-      this.logger.error(
-        `Failed to send ping response to judge ${judgeConnectionId}:`,
-        error,
-      );
-    }
-  }
-
   private handlePingResponse(judgeConnectionId: string, packet: any): void {
     this.logger.debug(
       `📍 Ping response from judge ${judgeConnectionId}:`,
       packet,
     );
-    // This is when we initiated the ping and received a response
-    // Currently we don't initiate pings, but we could track latency here
+
+    // Reset socket timeout when we receive ping response (critical for keeping connection alive)
+    const socket = this.judgeConnections.get(judgeConnectionId);
+    if (socket) {
+      socket.setTimeout(60000); // Reset timeout to 60 seconds like DMOJ does
+      this.logger.debug(
+        `🔄 Reset timeout for judge ${judgeConnectionId} on ping response`,
+      );
+    }
+
+    // We could track latency here if needed: packet.when vs current time
+  }
+
+  /**
+   * Start ping thread for a judge (like DMOJ bridge does)
+   */
+  private startPingThread(judgeConnectionId: string, judgeName: string): void {
+    this.logger.debug(`🏓 Starting ping thread for judge ${judgeName}`);
+
+    // Send ping every 10 seconds (matching DMOJ behavior)
+    const pingInterval = setInterval(() => {
+      const socket = this.judgeConnections.get(judgeConnectionId);
+      if (!socket) {
+        // Judge disconnected, stop the ping interval
+        clearInterval(pingInterval);
+        this.judgePingIntervals.delete(judgeConnectionId);
+        this.logger.debug(
+          `🏓 Stopped ping thread for disconnected judge ${judgeName}`,
+        );
+        return;
+      }
+
+      try {
+        const pingPacket = {
+          name: 'ping',
+          when: Date.now() / 1000, // Current timestamp in seconds
+        };
+
+        const jsonData = JSON.stringify(pingPacket);
+        const compressed = zlib.deflateSync(Buffer.from(jsonData));
+        const size = Buffer.allocUnsafe(4);
+        size.writeUInt32BE(compressed.length, 0);
+
+        socket.write(Buffer.concat([size, compressed]));
+        this.logger.debug(`🏓 Sent ping to judge ${judgeName}`);
+      } catch (error) {
+        this.logger.error(`Failed to send ping to judge ${judgeName}:`, error);
+        // Stop the ping interval on error
+        clearInterval(pingInterval);
+        this.judgePingIntervals.delete(judgeConnectionId);
+      }
+    }, 10000); // 10 seconds interval
+
+    // Store the interval so we can clear it later
+    this.judgePingIntervals.set(judgeConnectionId, pingInterval);
   }
 
   /**
@@ -942,6 +976,13 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
         this.connectedJudgeNames.delete(judgeName);
         this.connectionIdToJudgeName.delete(judgeConnectionId);
       }
+
+      // Stop ping interval
+      const pingInterval = this.judgePingIntervals.get(judgeConnectionId);
+      if (pingInterval) {
+        clearInterval(pingInterval);
+        this.judgePingIntervals.delete(judgeConnectionId);
+      }
     }
   }
 
@@ -956,5 +997,11 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
     this.judgeCapabilities.clear();
     this.connectedJudgeNames.clear();
     this.connectionIdToJudgeName.clear();
+
+    // Clear all ping intervals
+    for (const [, interval] of this.judgePingIntervals) {
+      clearInterval(interval);
+    }
+    this.judgePingIntervals.clear();
   }
 }
