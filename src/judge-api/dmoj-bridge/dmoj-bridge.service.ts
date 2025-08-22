@@ -142,6 +142,23 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       this.judgeConnections.delete(judgeConnectionId);
       this.judgeCapabilities.delete(judgeConnectionId);
     });
+
+    socket.on('timeout', () => {
+      this.logger.warn(`Judge ${judgeConnectionId} connection timeout`);
+
+      // Get judge name for logging
+      const judgeName = this.connectionIdToJudgeName.get(judgeConnectionId);
+      if (judgeName) {
+        this.logger.warn(`Judge seems dead: ${judgeName}`);
+        this.connectedJudgeNames.delete(judgeName);
+        this.connectionIdToJudgeName.delete(judgeConnectionId);
+      }
+
+      // Close the connection
+      socket.destroy();
+      this.judgeConnections.delete(judgeConnectionId);
+      this.judgeCapabilities.delete(judgeConnectionId);
+    });
   }
 
   /**
@@ -252,6 +269,12 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
         break;
       case 'submission-acknowledged':
         this.handleSubmissionAcknowledged(judgeConnectionId, packet);
+        break;
+      case 'ping':
+        this.handlePing(judgeConnectionId, packet);
+        break;
+      case 'ping-response':
+        this.handlePingResponse(judgeConnectionId, packet);
         break;
       default:
         this.logger.warn(`❓ Unknown packet type: ${packet.name}`);
@@ -500,6 +523,15 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       this.logger.log(`Sending handshake success to ${judgeConnectionId}`);
       this.sendHandshakeSuccess(judgeConnectionId);
 
+      // Set socket timeout to match DMOJ bridge behavior (60 seconds)
+      const socket = this.judgeConnections.get(judgeConnectionId);
+      if (socket) {
+        socket.setTimeout(60000); // 60 seconds timeout
+        this.logger.debug(
+          `Set socket timeout to 60 seconds for judge ${judgeName}`,
+        );
+      }
+
       // Emit event for successful authentication
       this.eventEmitter.emit('judge.authenticated', {
         judgeConnectionId: judgeConnectionId,
@@ -729,6 +761,50 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       judgeConnectionId: judgeConnectionId,
       submissionId,
     });
+  }
+
+  private handlePing(judgeConnectionId: string, packet: any): void {
+    this.logger.debug(`📍 Ping from judge ${judgeConnectionId}:`, packet);
+
+    // Respond to ping with ping-response
+    const socket = this.judgeConnections.get(judgeConnectionId);
+    if (!socket) {
+      this.logger.error(
+        `No connection to judge ${judgeConnectionId} for ping response`,
+      );
+      return;
+    }
+
+    try {
+      const pingResponse = {
+        name: 'ping-response',
+        when: packet.when || Date.now() / 1000, // Use judge's timestamp or current time
+        time: Date.now() / 1000, // Current server time
+        load: 1.0, // Server load (can be made dynamic)
+      };
+
+      const jsonData = JSON.stringify(pingResponse);
+      const compressed = zlib.deflateSync(Buffer.from(jsonData));
+      const size = Buffer.allocUnsafe(4);
+      size.writeUInt32BE(compressed.length, 0);
+
+      socket.write(Buffer.concat([size, compressed]));
+      this.logger.debug(`📍 Sent ping-response to judge ${judgeConnectionId}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send ping response to judge ${judgeConnectionId}:`,
+        error,
+      );
+    }
+  }
+
+  private handlePingResponse(judgeConnectionId: string, packet: any): void {
+    this.logger.debug(
+      `📍 Ping response from judge ${judgeConnectionId}:`,
+      packet,
+    );
+    // This is when we initiated the ping and received a response
+    // Currently we don't initiate pings, but we could track latency here
   }
 
   /**
