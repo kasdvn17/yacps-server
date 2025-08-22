@@ -202,8 +202,8 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
         );
 
         if (buffer.length >= size + 4) {
-          const packetData = buffer.slice(4, size + 4);
-          buffer = buffer.slice(size + 4);
+          const packetData = buffer.subarray(4, size + 4);
+          buffer = buffer.subarray(size + 4);
 
           try {
             const decompressed = zlib.inflateSync(packetData);
@@ -227,7 +227,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
             );
             this.logger.error(
               `Raw packet data (first 100 bytes):`,
-              packetData.slice(0, 100),
+              packetData.subarray(0, 100),
             );
           }
         } else {
