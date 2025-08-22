@@ -38,6 +38,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   private connectionIdToJudgeName = new Map<string, string>(); // connection ID -> judge name
   private tcpServer: net.Server;
   private readonly port: number;
+  private readonly listeningAddress: string;
 
   constructor(
     private eventEmitter: EventEmitter2,
@@ -46,6 +47,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   ) {
     // Use JUDGE_PORT environment variable, default to 9999
     this.port = parseInt(process.env.JUDGE_PORT || '9999', 10);
+    this.listeningAddress = process.env.BRIDGE_LISTENING_ADDRESS || '0.0.0.0';
   }
 
   async onModuleInit() {
@@ -65,8 +67,10 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
         this.handleJudgeConnection(socket);
       });
 
-      this.tcpServer.listen(this.port, '0.0.0.0', () => {
-        this.logger.log(`DMOJ Judge server listening on port ${this.port}`);
+      this.tcpServer.listen(this.port, this.listeningAddress, () => {
+        this.logger.log(
+          `DMOJ Judge server is listening on ${this.listeningAddress}:${this.port}`,
+        );
         resolve();
       });
 
