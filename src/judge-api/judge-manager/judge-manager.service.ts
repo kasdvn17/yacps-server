@@ -357,18 +357,19 @@ export class JudgeManagerService implements OnModuleInit {
     let maxMemory = 0;
 
     // Verdict priority order (higher number = higher priority = worse verdict)
+    // Based on DMOJ's CODE_DISPLAY_ORDER: ('IE', 'TLE', 'MLE', 'OLE', 'RTE', 'IR', 'WA', 'SC')
     const verdictPriority = {
       [SubmissionVerdict.AC]: 0,
       [SubmissionVerdict.SK]: 0, // Skipped doesn't affect verdict
       [SubmissionVerdict.WA]: 1,
       [SubmissionVerdict.IR]: 2,
-      [SubmissionVerdict.OLE]: 3,
-      [SubmissionVerdict.MLE]: 4,
-      [SubmissionVerdict.TLE]: 5,
-      [SubmissionVerdict.RTE]: 6,
-      [SubmissionVerdict.CE]: 7,
-      [SubmissionVerdict.ISE]: 8,
-      [SubmissionVerdict.AB]: 9,
+      [SubmissionVerdict.RTE]: 3,
+      [SubmissionVerdict.OLE]: 4,
+      [SubmissionVerdict.MLE]: 5,
+      [SubmissionVerdict.TLE]: 6,
+      [SubmissionVerdict.CE]: 7, // Not in DMOJ order but should be high priority
+      [SubmissionVerdict.AB]: 8, // Aborted should be high priority
+      [SubmissionVerdict.ISE]: 9, // Internal Server Error - highest priority (worst)
     };
 
     for (const testCase of testCases) {

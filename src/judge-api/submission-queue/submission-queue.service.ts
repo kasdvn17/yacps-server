@@ -12,6 +12,7 @@ import {
 export class SubmissionQueueService {
   private readonly logger = new Logger(SubmissionQueueService.name);
   private readonly busyJudges = new Set<string>(); // Track judges currently processing submissions
+  private lastUsedJudgeIndex = 0; // Track last used judge for round-robin
 
   constructor(
     private prisma: PrismaService,
@@ -238,15 +239,37 @@ export class SubmissionQueueService {
     // Get actually connected judges from DMOJ bridge
     const connectedJudgeNames = this.dmojBridge.getConnectedJudges();
 
-    // Filter out busy judges
-    return connectedJudgeNames.filter(
-      (judgeName) => !this.busyJudges.has(judgeName),
-    );
+    // Filter out busy judges and sort to ensure consistent ordering
+    // Sort alphabetically to avoid bias towards recently connected judges
+    return connectedJudgeNames
+      .filter((judgeName) => !this.busyJudges.has(judgeName))
+      .sort(); // Alphabetical sorting for deterministic order
   }
 
   getNextAvailableJudge(): string | null {
     const availableJudges = this.getAvailableJudges();
-    return availableJudges.length > 0 ? availableJudges[0] : null;
+
+    if (availableJudges.length === 0) {
+      return null;
+    }
+
+    // Implement round-robin assignment to distribute load evenly
+    // This prevents always assigning to the same judge (usually the newest one)
+    if (this.lastUsedJudgeIndex >= availableJudges.length) {
+      this.lastUsedJudgeIndex = 0; // Reset if index is out of bounds
+    }
+
+    const selectedJudge = availableJudges[this.lastUsedJudgeIndex];
+    this.lastUsedJudgeIndex =
+      (this.lastUsedJudgeIndex + 1) % availableJudges.length;
+
+    this.logger.debug(
+      `Selected judge ${selectedJudge} (${
+        this.lastUsedJudgeIndex - 1
+      }/${availableJudges.length - 1}) via round-robin`,
+    );
+
+    return selectedJudge;
   }
 
   async getAvailableJudgesWithDetails(): Promise<Judge[]> {
@@ -290,12 +313,19 @@ export class SubmissionQueueService {
     availableJudges: number;
     totalConnectedJudges: number;
     processingSubmissions: number;
+    availableJudgeNames: string[];
+    busyJudgeNames: string[];
+    lastUsedJudgeIndex: number;
   }> {
     const queued = await this.prisma.submissionQueue.count();
 
-    const totalConnectedJudges = this.dmojBridge.getConnectedJudges().length;
+    const allConnectedJudges = this.dmojBridge.getConnectedJudges();
+    const availableJudgeNames = this.getAvailableJudges();
+    const busyJudgeNames = Array.from(this.busyJudges);
+
+    const totalConnectedJudges = allConnectedJudges.length;
     const judging = this.busyJudges.size;
-    const availableJudges = totalConnectedJudges - judging;
+    const availableJudges = availableJudgeNames.length;
     const processingSubmissions = this.processingSubmissions.size;
 
     return {
@@ -304,6 +334,9 @@ export class SubmissionQueueService {
       availableJudges,
       totalConnectedJudges,
       processingSubmissions,
+      availableJudgeNames,
+      busyJudgeNames,
+      lastUsedJudgeIndex: this.lastUsedJudgeIndex,
     };
   }
 }
