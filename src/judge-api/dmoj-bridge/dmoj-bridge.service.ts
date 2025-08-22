@@ -144,20 +144,19 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
     });
 
     socket.on('timeout', () => {
-      this.logger.warn(`Judge ${judgeConnectionId} connection timeout`);
-
       // Get judge name for logging
       const judgeName = this.connectionIdToJudgeName.get(judgeConnectionId);
       if (judgeName) {
-        this.logger.warn(`Judge seems dead: ${judgeName}`);
-        this.connectedJudgeNames.delete(judgeName);
-        this.connectionIdToJudgeName.delete(judgeConnectionId);
+        this.logger.warn(
+          `Judge seems dead: ${judgeName}: (timeout but not disconnecting)`,
+        );
+      } else {
+        this.logger.warn(
+          `Judge ${judgeConnectionId} connection timeout (but not disconnecting)`,
+        );
       }
-
-      // Close the connection
-      socket.destroy();
-      this.judgeConnections.delete(judgeConnectionId);
-      this.judgeCapabilities.delete(judgeConnectionId);
+      // DMOJ doesn't disconnect on timeout - just logs a warning
+      // The timeout gets reset when new packets arrive (including pings)
     });
   }
 
@@ -231,6 +230,12 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       `📦 Received packet from judge ${judgeConnectionId}: ${packet.name}`,
     );
     this.logger.debug(`Full packet:`, JSON.stringify(packet, null, 2));
+
+    // Reset socket timeout on any packet received (like DMOJ does)
+    const socket = this.judgeConnections.get(judgeConnectionId);
+    if (socket) {
+      socket.setTimeout(60000); // Reset timeout to 60 seconds
+    }
 
     switch (packet.name) {
       case 'handshake':
