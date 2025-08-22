@@ -157,6 +157,8 @@ export class SubmissionQueueService {
       `Completing submission ${submissionId} with verdict ${verdict}`,
     );
 
+    const judgeDbId = this.dmojBridge.getJudgeIdFromName(judgeName);
+
     // Update submission
     await this.prisma.submission.update({
       where: { id: submissionId },
@@ -167,6 +169,7 @@ export class SubmissionQueueService {
         maxMemory: details?.maxMemory,
         maxTime: details?.maxTime,
         errorMessage: details?.errorMessage,
+        ...(judgeDbId && { judgeId: judgeDbId }), // Only set judgeId if it exists
       },
     });
 

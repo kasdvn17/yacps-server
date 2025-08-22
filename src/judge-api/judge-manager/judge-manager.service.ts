@@ -135,27 +135,26 @@ export class JudgeManagerService implements OnModuleInit {
    */
   @OnEvent('judge.authenticated')
   async handleJudgeAuthenticated(data: {
-    connectionId: string;
-    judgeId: string;
+    judgeConnectionId: string;
+    judgeDbId: string;
     judgeName: string;
     judge: any;
     data: any;
   }) {
     this.logger.log(
-      `Judge ${data.judgeName} (${data.connectionId}) authenticated successfully`,
+      `Judge ${data.judgeName} (${data.judgeConnectionId}) authenticated successfully`,
     );
 
     // Update judge last active time
     await this.prisma.judge.update({
-      where: { id: data.judgeId },
+      where: { id: data.judgeDbId },
       data: { lastActive: new Date() },
     });
 
     // Emit event for WebSocket clients
     this.eventEmitter.emit('judge.status-update', {
-      judgeId: data.judgeId,
       judgeName: data.judgeName,
-      connectionId: data.connectionId,
+      judgeId: data.judgeConnectionId,
       status: 'connected',
       timestamp: new Date(),
     });
@@ -166,7 +165,7 @@ export class JudgeManagerService implements OnModuleInit {
    */
   @OnEvent('submission.compile-error')
   async handleCompileError(data: {
-    judgeId: string;
+    judgeConnectionId: string;
     judgeName: string;
     submissionId: number;
     error: string;
@@ -194,16 +193,21 @@ export class JudgeManagerService implements OnModuleInit {
    */
   @OnEvent('submission.begin-grading')
   async handleBeginGrading(data: {
-    judgeId: string;
+    judgeConnectionId: string;
     submissionId: number;
     isPretest: boolean;
   }) {
     this.logger.debug(`Begin grading submission ${data.submissionId}`);
 
+    const judgeDbId = this.dmojBridge.getJudgeIdFromConnectionId(
+      data.judgeConnectionId,
+    );
+
     // Update submission in database
     await this.prisma.submission.update({
       where: { id: data.submissionId },
       data: {
+        judgeId: judgeDbId,
         verdict: SubmissionVerdict.RN,
         isPretest: data.isPretest,
       },
@@ -235,7 +239,7 @@ export class JudgeManagerService implements OnModuleInit {
    */
   @OnEvent('submission.test-case-status')
   async handleTestCaseStatus(data: {
-    judgeId: string;
+    judgeConnectionId: string;
     submissionId: number;
     caseNumber: number;
     batchNumber?: number;
@@ -321,7 +325,7 @@ export class JudgeManagerService implements OnModuleInit {
    */
   @OnEvent('submission.grading-end')
   async handleGradingEnd(data: {
-    judgeId: string;
+    judgeConnectionId: string;
     judgeName: string;
     submissionId: number;
   }) {
@@ -436,7 +440,7 @@ export class JudgeManagerService implements OnModuleInit {
    */
   @OnEvent('submission.aborted')
   async handleSubmissionAborted(data: {
-    judgeId: string;
+    judgeConnectionId: string;
     judgeName: string;
     submissionId: number;
   }) {
@@ -461,11 +465,11 @@ export class JudgeManagerService implements OnModuleInit {
    */
   @OnEvent('submission.acknowledged')
   handleSubmissionAcknowledged(data: {
-    judgeId: string;
+    judgeConnectionId: string;
     submissionId: number;
   }) {
     this.logger.log(
-      `✅ Submission ${data.submissionId} acknowledged by judge ${data.judgeId}`,
+      `✅ Submission ${data.submissionId} acknowledged by judge ${data.judgeConnectionId}`,
     );
 
     // Emit event for WebSocket clients to show that submission is being processed

@@ -36,6 +36,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   private judgeCapabilities = new Map<string, JudgeCapabilities>();
   private connectedJudgeNames = new Set<string>(); // Judge names that are connected
   private connectionIdToJudgeName = new Map<string, string>(); // connection ID -> judge name
+  private judgeNameToIdInDB = new Map<string, string>(); // judge name -> judge ID in database
   private tcpServer: net.Server;
   private readonly port: number;
   private readonly listeningAddress: string;
@@ -101,59 +102,64 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
    * Handle incoming judge connection
    */
   private handleJudgeConnection(socket: net.Socket): void {
-    const judgeId = `judge_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const judgeConnectionId = `judge_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const remoteAddress = `${socket.remoteAddress}:${socket.remotePort}`;
 
     this.logger.log(
-      `New judge connection from ${remoteAddress} (ID: ${judgeId})`,
+      `New judge connection from ${remoteAddress} (ID: ${judgeConnectionId})`,
     );
 
-    this.judgeConnections.set(judgeId, socket);
-    this.setupSocketHandlers(judgeId, socket);
+    this.judgeConnections.set(judgeConnectionId, socket);
+    this.setupSocketHandlers(judgeConnectionId, socket);
 
     socket.on('close', () => {
-      this.logger.log(`Judge ${judgeId} disconnected`);
+      this.logger.log(`Judge ${judgeConnectionId} disconnected`);
 
       // Get judge name and remove from connected set
-      const judgeName = this.connectionIdToJudgeName.get(judgeId);
+      const judgeName = this.connectionIdToJudgeName.get(judgeConnectionId);
       if (judgeName) {
         this.connectedJudgeNames.delete(judgeName);
-        this.connectionIdToJudgeName.delete(judgeId);
+        this.connectionIdToJudgeName.delete(judgeConnectionId);
         this.logger.log(
           `Removed ${judgeName} from connected judges. Total connected: ${this.connectedJudgeNames.size}`,
         );
       }
 
-      this.judgeConnections.delete(judgeId);
-      this.judgeCapabilities.delete(judgeId);
+      this.judgeConnections.delete(judgeConnectionId);
+      this.judgeCapabilities.delete(judgeConnectionId);
     });
 
     socket.on('error', (error) => {
-      this.logger.error(`Judge ${judgeId} connection error:`, error);
+      this.logger.error(`Judge ${judgeConnectionId} connection error:`, error);
 
       // Get judge name and remove from connected set
-      const judgeName = this.connectionIdToJudgeName.get(judgeId);
+      const judgeName = this.connectionIdToJudgeName.get(judgeConnectionId);
       if (judgeName) {
         this.connectedJudgeNames.delete(judgeName);
-        this.connectionIdToJudgeName.delete(judgeId);
+        this.connectionIdToJudgeName.delete(judgeConnectionId);
       }
 
-      this.judgeConnections.delete(judgeId);
-      this.judgeCapabilities.delete(judgeId);
+      this.judgeConnections.delete(judgeConnectionId);
+      this.judgeCapabilities.delete(judgeConnectionId);
     });
   }
 
   /**
    * Setup socket event handlers for a judge connection
    */
-  private setupSocketHandlers(judgeId: string, socket: net.Socket): void {
+  private setupSocketHandlers(
+    judgeConnectionId: string,
+    socket: net.Socket,
+  ): void {
     let buffer = Buffer.alloc(0);
 
-    this.logger.log(`🔌 Setting up socket handlers for judge ${judgeId}`);
+    this.logger.log(
+      `🔌 Setting up socket handlers for judge ${judgeConnectionId}`,
+    );
 
     socket.on('data', (data) => {
       this.logger.debug(
-        `📥 Received ${data.length} bytes from judge ${judgeId}`,
+        `📥 Received ${data.length} bytes from judge ${judgeConnectionId}`,
       );
       buffer = Buffer.concat([buffer, data]);
 
@@ -181,10 +187,10 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
               JSON.stringify(packet, null, 2),
             );
 
-            this.handlePacket(judgeId, packet);
+            this.handlePacket(judgeConnectionId, packet);
           } catch (error) {
             this.logger.error(
-              `❌ Failed to parse packet from judge ${judgeId}:`,
+              `❌ Failed to parse packet from judge ${judgeConnectionId}:`,
               error,
             );
             this.logger.error(
@@ -203,49 +209,49 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   /**
    * Handle incoming packets from judges
    */
-  private handlePacket(judgeId: string, packet: DMOJPacket): void {
+  private handlePacket(judgeConnectionId: string, packet: DMOJPacket): void {
     this.logger.debug(
-      `📦 Received packet from judge ${judgeId}: ${packet.name}`,
+      `📦 Received packet from judge ${judgeConnectionId}: ${packet.name}`,
     );
     this.logger.debug(`Full packet:`, JSON.stringify(packet, null, 2));
 
     switch (packet.name) {
       case 'handshake':
-        void this.handleHandshake(judgeId, packet);
+        void this.handleHandshake(judgeConnectionId, packet);
         break;
       case 'supported-problems':
-        this.handleSupportedProblems(judgeId, packet);
+        this.handleSupportedProblems(judgeConnectionId, packet);
         break;
       case 'compile-error':
-        this.handleCompileError(judgeId, packet);
+        this.handleCompileError(judgeConnectionId, packet);
         break;
       case 'compile-message':
-        this.handleCompileMessage(judgeId, packet);
+        this.handleCompileMessage(judgeConnectionId, packet);
         break;
       case 'begin-grading':
       case 'grading-begin':
-        this.handleBeginGrading(judgeId, packet);
+        this.handleBeginGrading(judgeConnectionId, packet);
         break;
       case 'grading-end':
-        this.handleGradingEnd(judgeId, packet);
+        this.handleGradingEnd(judgeConnectionId, packet);
         break;
       case 'batch-begin':
-        this.handleBatchBegin(judgeId, packet);
+        this.handleBatchBegin(judgeConnectionId, packet);
         break;
       case 'batch-end':
-        this.handleBatchEnd(judgeId, packet);
+        this.handleBatchEnd(judgeConnectionId, packet);
         break;
       case 'test-case-status':
-        this.handleTestCaseStatus(judgeId, packet);
+        this.handleTestCaseStatus(judgeConnectionId, packet);
         break;
       case 'submission-terminated':
-        this.handleSubmissionTerminated(judgeId, packet);
+        this.handleSubmissionTerminated(judgeConnectionId, packet);
         break;
       case 'submission-aborted':
-        this.handleSubmissionAborted(judgeId, packet);
+        this.handleSubmissionAborted(judgeConnectionId, packet);
         break;
       case 'submission-acknowledged':
-        this.handleSubmissionAcknowledged(judgeId, packet);
+        this.handleSubmissionAcknowledged(judgeConnectionId, packet);
         break;
       default:
         this.logger.warn(`❓ Unknown packet type: ${packet.name}`);
@@ -255,10 +261,14 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   /**
    * Send a packet to a judge
    */
-  private sendPacket(judgeId: string, packetName: string, data: any): boolean {
-    const socket = this.judgeConnections.get(judgeId);
+  private sendPacket(
+    judgeConnectionId: string,
+    packetName: string,
+    data: any,
+  ): boolean {
+    const socket = this.judgeConnections.get(judgeConnectionId);
     if (!socket) {
-      this.logger.error(`No connection to judge ${judgeId}`);
+      this.logger.error(`No connection to judge ${judgeConnectionId}`);
       return false;
     }
 
@@ -272,7 +282,10 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       socket.write(Buffer.concat([size, compressed]));
       return true;
     } catch (error) {
-      this.logger.error(`Failed to send packet to judge ${judgeId}:`, error);
+      this.logger.error(
+        `Failed to send packet to judge ${judgeConnectionId}:`,
+        error,
+      );
       return false;
     }
   }
@@ -280,17 +293,22 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   /**
    * Submit a submission to a judge for grading
    */
-  submitToJudge(judgeId: string, submission: DMOJSubmissionData): boolean {
-    const judgeName = this.connectionIdToJudgeName.get(judgeId);
+  submitToJudge(
+    judgeConnectionId: string,
+    submission: DMOJSubmissionData,
+  ): boolean {
+    const judgeName = this.connectionIdToJudgeName.get(judgeConnectionId);
     if (!judgeName || !this.connectedJudgeNames.has(judgeName)) {
-      this.logger.error(`Judge ${judgeId} not connected or authenticated`);
+      this.logger.error(
+        `Judge ${judgeConnectionId} not connected or authenticated`,
+      );
       return false;
     }
 
     // For submission-request, DMOJ expects the fields at root level, not in data
-    const socket = this.judgeConnections.get(judgeId);
+    const socket = this.judgeConnections.get(judgeConnectionId);
     if (!socket) {
-      this.logger.error(`No connection to judge ${judgeId}`);
+      this.logger.error(`No connection to judge ${judgeConnectionId}`);
       return false;
     }
 
@@ -316,7 +334,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       return true;
     } catch (error) {
       this.logger.error(
-        `Failed to send submission to judge ${judgeId}:`,
+        `Failed to send submission to judge ${judgeConnectionId}:`,
         error,
       );
       return false;
@@ -326,10 +344,10 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   /**
    * Abort a submission
    */
-  abortSubmission(judgeId: string, submissionId: number): boolean {
-    const socket = this.judgeConnections.get(judgeId);
+  abortSubmission(judgeConnectionId: string, submissionId: number): boolean {
+    const socket = this.judgeConnections.get(judgeConnectionId);
     if (!socket) {
-      this.logger.error(`No connection to judge ${judgeId}`);
+      this.logger.error(`No connection to judge ${judgeConnectionId}`);
       return false;
     }
 
@@ -353,8 +371,11 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   }
 
   // Packet handlers
-  private async handleHandshake(judgeId: string, data: any): Promise<void> {
-    this.logger.log(`=== HANDSHAKE DEBUG START for ${judgeId} ===`);
+  private async handleHandshake(
+    judgeConnectionId: string,
+    data: any,
+  ): Promise<void> {
+    this.logger.log(`=== HANDSHAKE DEBUG START for ${judgeConnectionId} ===`);
     this.logger.log(`Handshake data received:`, JSON.stringify(data, null, 2));
 
     try {
@@ -370,14 +391,15 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
         this.logger.error(
           `Missing judge name or key - name: ${judgeName}, key: ${!!judgeKey}`,
         );
-        this.sendHandshakeFailure(judgeId, 'Missing judge name or key');
+        this.sendHandshakeFailure(
+          judgeConnectionId,
+          'Missing judge name or key',
+        );
         return;
       }
 
       // Verify JWT token
-      this.logger.log(
-        `Attempting JWT verification with secret: ${process.env.JWT_JUDGE_TOKEN?.substring(0, 10)}...`,
-      );
+      this.logger.log(`Attempting JWT verification...`);
       let payload;
       try {
         payload = await this.jwtService.verifyAsync(judgeKey, {
@@ -390,7 +412,10 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       } catch (error) {
         this.logger.error(`JWT verification failed:`, error.message);
         this.logger.error(`JWT error details:`, error);
-        this.sendHandshakeFailure(judgeId, 'Invalid authentication token');
+        this.sendHandshakeFailure(
+          judgeConnectionId,
+          'Invalid authentication token',
+        );
         return;
       }
 
@@ -426,7 +451,10 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
           JSON.stringify(allJudges, null, 2),
         );
 
-        this.sendHandshakeFailure(judgeId, 'Judge not found or invalid token');
+        this.sendHandshakeFailure(
+          judgeConnectionId,
+          'Judge not found or invalid token',
+        );
         return;
       }
 
@@ -434,7 +462,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
         this.logger.error(
           `Judge ${judgeName} is not active (status: ${judge.status})`,
         );
-        this.sendHandshakeFailure(judgeId, 'Judge is not active');
+        this.sendHandshakeFailure(judgeConnectionId, 'Judge is not active');
         return;
       }
 
@@ -443,7 +471,8 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
 
       // Add judge name to connected judges set
       this.connectedJudgeNames.add(judgeName);
-      this.connectionIdToJudgeName.set(judgeId, judgeName);
+      this.connectionIdToJudgeName.set(judgeConnectionId, judgeName);
+      this.judgeNameToIdInDB.set(judgeName, judge.id);
       this.logger.log(
         `Added ${judgeName} to connected judges. Total connected: ${this.connectedJudgeNames.size}`,
       );
@@ -452,7 +481,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       const problems = (data.problems || []).map((p: any) => p[0]); // Extract problem names
       const executors = data.executors || {};
 
-      this.judgeCapabilities.set(judgeId, {
+      this.judgeCapabilities.set(judgeConnectionId, {
         problems,
         executors,
       });
@@ -468,122 +497,138 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       });
 
       // Send handshake success response
-      this.logger.log(`Sending handshake success to ${judgeId}`);
-      this.sendHandshakeSuccess(judgeId);
+      this.logger.log(`Sending handshake success to ${judgeConnectionId}`);
+      this.sendHandshakeSuccess(judgeConnectionId);
 
       // Emit event for successful authentication
       this.eventEmitter.emit('judge.authenticated', {
-        connectionId: judgeId,
-        judgeId: judge.id,
+        connectionId: judgeConnectionId,
+        judgeConnectionId: judge.id,
         judgeName,
         judge,
         data,
       });
 
-      this.logger.log(`=== HANDSHAKE DEBUG END for ${judgeId} ===`);
+      this.logger.log(`=== HANDSHAKE DEBUG END for ${judgeConnectionId} ===`);
     } catch (error) {
-      this.logger.error(`Handshake error for judge ${judgeId}:`, error);
+      this.logger.error(
+        `Handshake error for judge ${judgeConnectionId}:`,
+        error,
+      );
       this.logger.error(`Error stack:`, error.stack);
-      this.sendHandshakeFailure(judgeId, 'Internal server error');
+      this.sendHandshakeFailure(judgeConnectionId, 'Internal server error');
     }
   }
 
-  private sendHandshakeSuccess(judgeId: string): void {
-    this.sendPacket(judgeId, 'handshake-success', {});
+  private sendHandshakeSuccess(judgeConnectionId: string): void {
+    this.sendPacket(judgeConnectionId, 'handshake-success', {});
   }
 
-  private sendHandshakeFailure(judgeId: string, reason: string): void {
-    this.sendPacket(judgeId, 'handshake-failure', { reason });
+  private sendHandshakeFailure(
+    judgeConnectionId: string,
+    reason: string,
+  ): void {
+    this.sendPacket(judgeConnectionId, 'handshake-failure', { reason });
     // Disconnect the judge after sending failure
     setTimeout(() => {
-      const socket = this.judgeConnections.get(judgeId);
+      const socket = this.judgeConnections.get(judgeConnectionId);
       if (socket) {
         socket.destroy();
-        this.judgeConnections.delete(judgeId);
+        this.judgeConnections.delete(judgeConnectionId);
 
         // Remove from connected judges if it was added
-        const judgeName = this.connectionIdToJudgeName.get(judgeId);
+        const judgeName = this.connectionIdToJudgeName.get(judgeConnectionId);
         if (judgeName) {
           this.connectedJudgeNames.delete(judgeName);
-          this.connectionIdToJudgeName.delete(judgeId);
+          this.connectionIdToJudgeName.delete(judgeConnectionId);
+          if (this.judgeNameToIdInDB.has(judgeName))
+            this.judgeNameToIdInDB.delete(judgeName);
         }
       }
     }, 100);
   }
 
-  private handleSupportedProblems(judgeId: string, packet: any): void {
-    this.logger.debug(`Judge ${judgeId} supports problems:`, packet);
+  private handleSupportedProblems(
+    judgeConnectionId: string,
+    packet: any,
+  ): void {
+    this.logger.debug(`Judge ${judgeConnectionId} supports problems:`, packet);
     this.eventEmitter.emit('judge.supported-problems', {
-      judgeId,
+      judgeConnectionId: judgeConnectionId,
       problems: packet.problems || packet, // Support both flat and nested structure
     });
   }
 
-  private handleCompileError(judgeId: string, data: any): void {
-    this.logger.debug(`Compile error from judge ${judgeId}:`, data);
-    const judgeName = this.getJudgeNameFromConnectionId(judgeId) || 'unknown';
+  private handleCompileError(judgeConnectionId: string, data: any): void {
+    this.logger.debug(`Compile error from judge ${judgeConnectionId}:`, data);
+    const judgeName =
+      this.getJudgeNameFromConnectionId(judgeConnectionId) || 'unknown';
     this.eventEmitter.emit('submission.compile-error', {
-      judgeId,
+      judgeConnectionId: judgeConnectionId,
       judgeName,
       submissionId: data['submission-id'],
       error: data.log,
     });
   }
 
-  private handleCompileMessage(judgeId: string, data: any): void {
-    this.logger.debug(`Compile message from judge ${judgeId}:`, data);
+  private handleCompileMessage(judgeConnectionId: string, data: any): void {
+    this.logger.debug(`Compile message from judge ${judgeConnectionId}:`, data);
     this.eventEmitter.emit('submission.compile-message', {
-      judgeId,
+      judgeConnectionId: judgeConnectionId,
       submissionId: data['submission-id'],
       message: data.log,
     });
   }
 
-  private handleBeginGrading(judgeId: string, data: any): void {
-    this.logger.debug(`Begin grading from judge ${judgeId}:`, data);
+  private handleBeginGrading(judgeConnectionId: string, data: any): void {
+    this.logger.debug(`Begin grading from judge ${judgeConnectionId}:`, data);
     this.eventEmitter.emit('submission.begin-grading', {
-      judgeId,
+      judgeConnectionId: judgeConnectionId,
       submissionId: data['submission-id'],
       isPretest: data.pretested || data['is-pretest'],
     });
   }
 
-  private handleGradingEnd(judgeId: string, data: any): void {
-    this.logger.debug(`Grading end from judge ${judgeId}:`, data);
-    const judgeName = this.getJudgeNameFromConnectionId(judgeId) || 'unknown';
+  private handleGradingEnd(judgeConnectionId: string, data: any): void {
+    this.logger.debug(`Grading end from judge ${judgeConnectionId}:`, data);
+    const judgeName =
+      this.getJudgeNameFromConnectionId(judgeConnectionId) || 'unknown';
     this.eventEmitter.emit('submission.grading-end', {
-      judgeId,
+      judgeConnectionId: judgeConnectionId,
       judgeName,
       submissionId: data['submission-id'],
     });
   }
 
-  private handleBatchBegin(judgeId: string, data: any): void {
-    this.logger.debug(`Batch begin from judge ${judgeId}:`, data);
+  private handleBatchBegin(judgeConnectionId: string, data: any): void {
+    this.logger.debug(`Batch begin from judge ${judgeConnectionId}:`, data);
     this.eventEmitter.emit('submission.batch-begin', {
-      judgeId,
+      judgeConnectionId: judgeConnectionId,
       submissionId: data['submission-id'],
       batchNumber: data['batch-no'],
     });
   }
 
-  private handleBatchEnd(judgeId: string, data: any): void {
-    this.logger.debug(`Batch end from judge ${judgeId}:`, data);
+  private handleBatchEnd(judgeConnectionId: string, data: any): void {
+    this.logger.debug(`Batch end from judge ${judgeConnectionId}:`, data);
     this.eventEmitter.emit('submission.batch-end', {
-      judgeId,
+      judgeConnectionId: judgeConnectionId,
       submissionId: data['submission-id'],
       batchNumber: data['batch-no'],
     });
   }
 
-  private handleTestCaseStatus(judgeId: string, data: any): void {
-    this.logger.debug(`Test case status from judge ${judgeId}:`, data);
+  private handleTestCaseStatus(judgeConnectionId: string, data: any): void {
+    this.logger.debug(
+      `Test case status from judge ${judgeConnectionId}:`,
+      data,
+    );
 
     // DMOJ sends test-case-status with a cases array containing multiple test cases
     if (data.cases && Array.isArray(data.cases)) {
       data.cases.forEach((testCase: any) => {
         this.eventEmitter.emit('submission.test-case-status', {
-          judgeId,
+          judgeConnectionId: judgeConnectionId,
           submissionId: data['submission-id'],
           caseNumber: testCase.position,
           batchNumber: testCase.batch,
@@ -601,7 +646,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
     } else {
       // Fallback for individual test case format (if it exists)
       this.eventEmitter.emit('submission.test-case-status', {
-        judgeId,
+        judgeConnectionId: judgeConnectionId,
         submissionId: data['submission-id'],
         caseNumber: data.case || data.position,
         batchNumber: data.batch,
@@ -618,31 +663,44 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private handleSubmissionTerminated(judgeId: string, data: any): void {
-    this.logger.debug(`Submission terminated from judge ${judgeId}:`, data);
+  private handleSubmissionTerminated(
+    judgeConnectionId: string,
+    data: any,
+  ): void {
+    this.logger.debug(
+      `Submission terminated from judge ${judgeConnectionId}:`,
+      data,
+    );
     this.eventEmitter.emit('submission.terminated', {
-      judgeId,
+      judgeConnectionId: judgeConnectionId,
       submissionId: data['submission-id'],
     });
   }
 
-  private handleSubmissionAborted(judgeId: string, data: any): void {
-    this.logger.debug(`Submission aborted from judge ${judgeId}:`, data);
-    const judgeName = this.getJudgeNameFromConnectionId(judgeId) || 'unknown';
+  private handleSubmissionAborted(judgeConnectionId: string, data: any): void {
+    this.logger.debug(
+      `Submission aborted from judge ${judgeConnectionId}:`,
+      data,
+    );
+    const judgeName =
+      this.getJudgeNameFromConnectionId(judgeConnectionId) || 'unknown';
     this.eventEmitter.emit('submission.aborted', {
-      judgeId,
+      judgeConnectionId: judgeConnectionId,
       judgeName,
       submissionId: data['submission-id'],
     });
   }
 
-  private handleSubmissionAcknowledged(judgeId: string, packet: any): void {
+  private handleSubmissionAcknowledged(
+    judgeConnectionId: string,
+    packet: any,
+  ): void {
     const submissionId = packet['submission-id'];
     this.logger.log(
-      `✅ Submission ${submissionId} acknowledged by judge ${judgeId}`,
+      `✅ Submission ${submissionId} acknowledged by judge ${judgeConnectionId}`,
     );
     this.eventEmitter.emit('submission.acknowledged', {
-      judgeId,
+      judgeConnectionId: judgeConnectionId,
       submissionId,
     });
   }
@@ -681,14 +739,33 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Get judge ID from connection ID
+   */
+  getJudgeIdFromConnectionId(connectionId: string): string | null {
+    const judgeName = this.connectionIdToJudgeName.get(connectionId);
+    if (!judgeName) return null;
+    return this.judgeNameToIdInDB.get(judgeName) || null;
+  }
+
+  /**
+   * Get judge ID from judge name
+   */
+  getJudgeIdFromName(name: string): string | null {
+    return this.judgeNameToIdInDB.get(name) || null;
+  }
+
+  /**
    * Get judge capabilities (problems and executors)
    */
   getJudgeCapabilities(
-    judgeId?: string,
+    judgeConnectionId?: string,
   ): JudgeCapabilities | Map<string, JudgeCapabilities> {
-    if (judgeId) {
+    if (judgeConnectionId) {
       return (
-        this.judgeCapabilities.get(judgeId) || { problems: [], executors: {} }
+        this.judgeCapabilities.get(judgeConnectionId) || {
+          problems: [],
+          executors: {},
+        }
       );
     }
     return this.judgeCapabilities;
@@ -745,18 +822,18 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   /**
    * Disconnect from a judge
    */
-  disconnectJudge(judgeId: string): void {
-    const socket = this.judgeConnections.get(judgeId);
+  disconnectJudge(judgeConnectionId: string): void {
+    const socket = this.judgeConnections.get(judgeConnectionId);
     if (socket) {
       socket.destroy();
-      this.judgeConnections.delete(judgeId);
-      this.judgeCapabilities.delete(judgeId);
+      this.judgeConnections.delete(judgeConnectionId);
+      this.judgeCapabilities.delete(judgeConnectionId);
 
       // Remove from connected judges
-      const judgeName = this.connectionIdToJudgeName.get(judgeId);
+      const judgeName = this.connectionIdToJudgeName.get(judgeConnectionId);
       if (judgeName) {
         this.connectedJudgeNames.delete(judgeName);
-        this.connectionIdToJudgeName.delete(judgeId);
+        this.connectionIdToJudgeName.delete(judgeConnectionId);
       }
     }
   }
