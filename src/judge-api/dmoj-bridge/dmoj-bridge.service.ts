@@ -553,6 +553,32 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
     packet: any,
   ): void {
     this.logger.debug(`Judge ${judgeConnectionId} supports problems:`, packet);
+
+    // Update the stored judge capabilities with new problem list
+    const currentCapabilities = this.judgeCapabilities.get(judgeConnectionId);
+    if (currentCapabilities) {
+      // Extract problems from packet (support both flat and nested structure)
+      const problems = Array.isArray(packet.problems)
+        ? packet.problems.map((p: any) => (Array.isArray(p) ? p[0] : p)) // Handle [[problemId, ...]] format
+        : Array.isArray(packet)
+          ? packet.map((p: any) => (Array.isArray(p) ? p[0] : p))
+          : [];
+
+      // Update capabilities with new problem list
+      currentCapabilities.problems = problems;
+      this.judgeCapabilities.set(judgeConnectionId, currentCapabilities);
+
+      const judgeName = this.getJudgeNameFromConnectionId(judgeConnectionId);
+      this.logger.log(
+        `✅ Updated capabilities for judge ${judgeName} (${judgeConnectionId}): ${problems.length} problems`,
+      );
+      this.logger.debug(`Problems: ${problems.join(', ')}`);
+    } else {
+      this.logger.warn(
+        `Cannot update capabilities for judge ${judgeConnectionId}: no existing capabilities found`,
+      );
+    }
+
     this.eventEmitter.emit('judge.supported-problems', {
       judgeConnectionId: judgeConnectionId,
       problems: packet.problems || packet, // Support both flat and nested structure
