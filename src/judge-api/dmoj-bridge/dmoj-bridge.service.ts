@@ -502,8 +502,8 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
 
       // Emit event for successful authentication
       this.eventEmitter.emit('judge.authenticated', {
-        connectionId: judgeConnectionId,
-        judgeConnectionId: judge.id,
+        judgeConnectionId: judgeConnectionId,
+        judgeDbId: judge.id,
         judgeName,
         judge,
         data,
@@ -734,15 +734,15 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
   /**
    * Get judge name from connection ID
    */
-  getJudgeNameFromConnectionId(connectionId: string): string | null {
-    return this.connectionIdToJudgeName.get(connectionId) || null;
+  getJudgeNameFromConnectionId(judgeConnectionId: string): string | null {
+    return this.connectionIdToJudgeName.get(judgeConnectionId) || null;
   }
 
   /**
    * Get judge ID from connection ID
    */
-  getJudgeIdFromConnectionId(connectionId: string): string | null {
-    const judgeName = this.connectionIdToJudgeName.get(connectionId);
+  getJudgeIdFromConnectionId(judgeConnectionId: string): string | null {
+    const judgeName = this.connectionIdToJudgeName.get(judgeConnectionId);
     if (!judgeName) return null;
     return this.judgeNameToIdInDB.get(judgeName) || null;
   }
