@@ -201,6 +201,11 @@ export class SubmissionsController {
             testers: { select: { id: true } },
           },
         },
+        judge: {
+          select: {
+            name: true,
+          },
+        },
         testCases: {
           orderBy: { caseNumber: 'asc' },
         },
@@ -291,7 +296,7 @@ export class SubmissionsController {
       throw new BadRequestException('INVALID_SUBMISSION');
     }
 
-    const submission = await this.prisma.submission.findUnique({
+    const submission: any = await this.prisma.submission.findUnique({
       where: {
         id: submissionId,
         problem:
@@ -341,6 +346,7 @@ export class SubmissionsController {
     }
     if (!this.problemsService.viewableProblem(user, submission.problem))
       throw new ForbiddenException('SUBMISSION_NOT_VIEWABLE');
+    delete submission.problem; // Redact problem moderators for privacy
     return {
       success: true,
       data: submission,
