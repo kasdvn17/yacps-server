@@ -22,6 +22,7 @@ interface DMOJSubmissionData {
   source: string;
   time_limit: number;
   memory_limit: number;
+  meta?: Record<string, unknown>;
 }
 
 interface JudgeCapabilities {
@@ -363,7 +364,8 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
         'time-limit': submission.time_limit,
         'memory-limit': submission.memory_limit,
         'short-circuit': false,
-        meta: {},
+        // Forward meta through (may include 'file-only' and other hints)
+        meta: submission.meta || {},
       };
 
       const jsonData = JSON.stringify(packet);
