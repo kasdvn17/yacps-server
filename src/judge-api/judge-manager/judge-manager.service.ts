@@ -5,6 +5,8 @@ import { SubmissionQueueService } from '../submission-queue/submission-queue.ser
 import { DMOJBridgeService } from '../dmoj-bridge/dmoj-bridge.service';
 import { SubmissionVerdict } from '@prisma/client';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 @Injectable()
 export class JudgeManagerService implements OnModuleInit {
@@ -52,49 +54,83 @@ export class JudgeManagerService implements OnModuleInit {
     try {
       // Get next submission from queue
       const queueEntry = await this.queueService.getNextSubmission();
-      if (!queueEntry) {
-        return;
-      }
+      if (!queueEntry) return;
 
-      // Get available judges (not busy ones)
+      // Get available judge
       const availableJudgeName = this.queueService.getNextAvailableJudge();
-
       this.logger.debug(
         `Available judges: ${this.queueService.getAvailableJudges().length}`,
       );
+      if (!availableJudgeName) return;
 
-      if (!availableJudgeName) {
-        this.logger.debug('No available judges, skipping queue processing');
-        return;
-      }
-
-      // Assign submission to judge using the judge name
+      // Assign submission to judge
       const assignmentResult = await this.queueService.assignToJudge(
         queueEntry.id,
         availableJudgeName,
       );
+      if (!assignmentResult) return;
 
-      if (!assignmentResult) {
-        this.logger.debug(
-          `Failed to assign submission to judge ${availableJudgeName} (judge became busy)`,
-        );
-        return;
+      // Build submission payload. If SCRATCH, generate a presigned GET URL.
+      let source = queueEntry.submission.code;
+      if (queueEntry.submission.language === 'SCRATCH') {
+        try {
+          const bucket = process.env.STORAGE_ENDPOINT;
+          const region = process.env.STORAGE_REGION || 'auto';
+          const endpoint = process.env.STORAGE_ENDPOINT;
+          const accessKeyId = process.env.STORAGE_ACCESS_KEY_ID;
+          const secretAccessKey = process.env.STORAGE_SECRET_ACCESS_KEY;
+
+          if (bucket && endpoint && accessKeyId && secretAccessKey) {
+            const s3 = new S3Client({
+              region,
+              credentials: { accessKeyId, secretAccessKey },
+              endpoint,
+              forcePathStyle: false,
+            });
+            const key = `scratchCodes/${queueEntry.submission.id}.sb3`;
+            source = await getSignedUrl(
+              s3,
+              new GetObjectCommand({ Bucket: bucket, Key: key }),
+              { expiresIn: 900 },
+            );
+          }
+        } catch (err) {
+          this.logger.warn(
+            'Failed to create presigned URL for submission; falling back to code',
+            err,
+          );
+        }
       }
 
-      // Send submission to DMOJ bridge
       const submissionData = {
         id: queueEntry.submission.id,
         problem: queueEntry.submission.problem.slug,
         language: queueEntry.submission.language,
-        source: queueEntry.submission.code,
+        source,
         time_limit:
-          queueEntry.submission.problem.testEnvironments?.timeLimit || 1, // in seconds
+          queueEntry.submission.problem.testEnvironments?.timeLimit || 1,
         memory_limit:
           (queueEntry.submission.problem.testEnvironments?.memoryLimit || 256) *
-          1024, // convert MB to KB
+          1024,
+      } as {
+        id: number;
+        problem: string;
+        language: string;
+        source: string;
+        time_limit: number;
+        memory_limit: number;
+        meta?: Record<string, unknown>;
       };
 
-      // Get the connection ID for this judge by name
+      if (queueEntry.submission.language === 'SCRATCH') {
+        submissionData.meta = {
+          'file-only': true,
+          'file-size-limit':
+            queueEntry.submission.problem.testEnvironments?.fileSizeLimit || 5,
+        } as Record<string, unknown>;
+      }
+
+      // Get connection and send
       const connectionId =
         this.dmojBridge.getConnectionIdForJudgeName(availableJudgeName);
       if (!connectionId) {
@@ -113,7 +149,6 @@ export class JudgeManagerService implements OnModuleInit {
         connectionId,
         submissionData,
       );
-
       if (!success) {
         await this.queueService.failSubmission(
           queueEntry.submission.id,

@@ -10,6 +10,8 @@ import {
   BadRequestException,
   Logger,
   ForbiddenException,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -23,6 +25,11 @@ import { ProblemsService } from '../problems/problems.service';
 import { SubmissionsService } from './submissions.service';
 import { PermissionsService } from '../auth/permissions.service';
 import { UserPermissions } from 'constants/permissions';
+import { FileInterceptor } from '@nestjs/platform-express';
+import * as multer from 'multer';
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+// S3 upload handled in service
 
 @Controller()
 @UseGuards(AuthGuard)
@@ -37,6 +44,53 @@ export class SubmissionsController {
     private submissionsService: SubmissionsService,
     private permissionsService: PermissionsService,
   ) {}
+
+  // Multipart submission handler for file uploads (e.g., Scratch .sb3)
+  @Post('upload')
+  @UseInterceptors(FileInterceptor('file', { storage: multer.memoryStorage() }))
+  async uploadSubmission(
+    @UploadedFile() file: any,
+    @Body() body: any,
+    @LoggedInUser() user: User,
+  ) {
+    // Basic validation
+    if (!file) throw new BadRequestException('NO_FILE');
+    if (!body.problemSlug || !body.language)
+      throw new BadRequestException('MISSING_FIELDS');
+
+    const problem = await this.problemsService.findViewableProblemWithSlug(
+      body.problemSlug,
+      user,
+    );
+    if (!problem) throw new NotFoundException('PROBLEM_NOT_FOUND');
+
+    const supportedLanguages = problem.testEnvironments?.allowedLangs || [];
+    if (!supportedLanguages.includes(body.language)) {
+      throw new BadRequestException('LANGUAGE_NOT_SUPPORTED');
+    }
+
+    // Forward file buffer to the service; the service will create the submission
+    // and upload the file to object storage using the submission ID as the key.
+    const submission = await this.submissionsService.createSubmissionWithFile(
+      user,
+      problem,
+      body.language,
+      file.buffer,
+      file.originalname,
+      body.contestantId,
+      body.isPretest,
+    );
+
+    // Prefer the presigned URL returned by the service if available
+    const presigned = (submission as any)?._presignedUrl as string | undefined;
+
+    return {
+      success: true,
+      data: submission,
+      url: presigned || null,
+      name: file.originalname,
+    };
+  }
 
   /**
    * Create a new submission for a problem
@@ -261,9 +315,6 @@ export class SubmissionsController {
 
         return {
           ...testCase,
-          feedback: testCase.feedback, // Ensure feedback is passed through
-          // Include input/output/expected if user has permission
-          // Use data from judge if available, otherwise fall back to problem test case
           input: canSeeTestcaseData
             ? testCase.input || problemTestCase?.input
             : undefined,
@@ -274,6 +325,42 @@ export class SubmissionsController {
         };
       }),
     };
+
+    // If this is a SCRATCH submission, attempt to generate a presigned GET URL
+    // for the private object in R2 and attach it to the returned object so
+    // the frontend can present a download link. This URL is not persisted.
+    if (mappedSubmission.language === 'SCRATCH') {
+      try {
+        const bucket = process.env.STORAGE_ENDPOINT;
+        const region = process.env.STORAGE_REGION || 'auto';
+        const endpoint = process.env.STORAGE_ENDPOINT;
+        const accessKeyId = process.env.STORAGE_ACCESS_KEY_ID;
+        const secretAccessKey = process.env.STORAGE_SECRET_ACCESS_KEY;
+
+        if (bucket && endpoint && accessKeyId && secretAccessKey) {
+          const s3 = new S3Client({
+            region,
+            credentials: { accessKeyId, secretAccessKey },
+            endpoint,
+            forcePathStyle: false,
+          });
+
+          const key = `scratchCodes/${mappedSubmission.id}.sb3`;
+          const presigned = await getSignedUrl(
+            s3,
+            new GetObjectCommand({ Bucket: bucket, Key: key }),
+            { expiresIn: 900 },
+          );
+
+          (mappedSubmission as any).uploadedFileUrl = presigned;
+        }
+      } catch (err) {
+        this.logger.warn(
+          'Failed to generate presigned URL for submission',
+          err,
+        );
+      }
+    }
 
     return {
       success: true,
