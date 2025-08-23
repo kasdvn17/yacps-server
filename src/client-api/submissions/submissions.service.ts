@@ -143,7 +143,7 @@ export class SubmissionsService {
 
       // Upload file to S3 / Cloudflare R2 using submission ID as object key
       try {
-        const bucket = process.env.STORAGE_ENDPOINT;
+        const bucket = process.env.STORAGE_BUCKET;
         const region = process.env.STORAGE_REGION || 'auto';
         const endpoint = process.env.STORAGE_ENDPOINT; // e.g., https://<account>.r2.cloudflarestorage.com
         const accessKeyId = process.env.STORAGE_ACCESS_KEY_ID;

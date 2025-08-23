@@ -74,7 +74,7 @@ export class JudgeManagerService implements OnModuleInit {
       let source = queueEntry.submission.code;
       if (queueEntry.submission.language === 'SCRATCH') {
         try {
-          const bucket = process.env.STORAGE_ENDPOINT;
+          const bucket = process.env.STORAGE_BUCKET;
           const region = process.env.STORAGE_REGION || 'auto';
           const endpoint = process.env.STORAGE_ENDPOINT;
           const accessKeyId = process.env.STORAGE_ACCESS_KEY_ID;

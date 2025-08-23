@@ -353,7 +353,7 @@ export class SubmissionsController {
     // the frontend can present a download link. This URL is not persisted.
     if (mappedSubmission.language === 'SCRATCH') {
       try {
-        const bucket = process.env.STORAGE_ENDPOINT;
+        const bucket = process.env.STORAGE_BUCKET;
         const region = process.env.STORAGE_REGION || 'auto';
         const endpoint = process.env.STORAGE_ENDPOINT;
         const accessKeyId = process.env.STORAGE_ACCESS_KEY_ID;
