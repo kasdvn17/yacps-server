@@ -14,12 +14,13 @@ datasource db {
 model User {
   id String @id @default(uuid())
 
-  email    String  @unique
-  username String  @unique
-  password String
-  fullname String?
+  email          String  @unique
+  username       String  @unique
+  password       String
+  fullname       String?
   // DOB      DateTime
-  perms    BigInt  @default(0)
+  defaultRuntime String  @default("CPP17")
+  perms          BigInt  @default(0)
 
   rating Int?
 
