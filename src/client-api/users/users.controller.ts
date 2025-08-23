@@ -24,6 +24,7 @@ import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { getRealIp } from '../utils';
 import { Config } from 'config';
 import { UserPermissions } from 'constants/permissions';
+import * as crypto from 'crypto';
 
 @Controller()
 @UseGuards(AuthGuard, ThrottlerGuard)
@@ -270,6 +271,32 @@ export class UsersController {
         submissions: transformedSubmissions,
         bio: '', // User model doesn't have bio field
         avatarURL: '', // User model doesn't have avatarURL field
+      };
+    } catch (err) {
+      if (err instanceof NotFoundException) {
+        throw err;
+      }
+      this.logger.error(err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+    }
+  }
+
+  @Get('/avatar/:username')
+  async getUserAvatar(@Param('username') username: string) {
+    try {
+      const user = await this.usersService.findUser({ username }, false, false);
+      if (!user) {
+        throw new NotFoundException('USER_NOT_FOUND');
+      }
+
+      const emailHash = crypto
+        .createHash('md5')
+        .update(user.email.trim().toLowerCase())
+        .digest('hex');
+      const gravatarURL = `https://www.gravatar.com/avatar/${emailHash}`;
+
+      return {
+        avatarURL: gravatarURL,
       };
     } catch (err) {
       if (err instanceof NotFoundException) {
