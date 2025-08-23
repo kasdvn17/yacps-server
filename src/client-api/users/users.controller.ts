@@ -294,7 +294,7 @@ export class UsersController {
         .createHash('md5')
         .update(user.email.trim().toLowerCase())
         .digest('hex');
-      const gravatarURL = `https://www.gravatar.com/avatar/${emailHash}`;
+      const gravatarURL = `https://gravatar.com/avatar/${emailHash}`;
 
       return {
         avatarURL: gravatarURL,
