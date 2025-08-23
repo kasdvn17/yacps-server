@@ -282,6 +282,7 @@ export class UsersController {
   }
 
   @Get('/avatar/:username')
+  @Public()
   async getUserAvatar(@Param('username') username: string) {
     try {
       const user = await this.usersService.findUser({ username }, false, false);
