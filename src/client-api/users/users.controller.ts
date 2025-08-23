@@ -209,10 +209,21 @@ export class UsersController {
         },
       });
 
-      // Calculate total points from submissions
-      const totalPoints = submissions.reduce((sum, submission) => {
-        return sum + (submission.points || 0);
-      }, 0);
+      // Calculate total points from submissions by taking the highest score per problem
+      const maxPointsByProblem = new Map<string, number>();
+      submissions.forEach((submission) => {
+        const slug = submission.problem?.slug;
+        if (!slug) return;
+        const current = maxPointsByProblem.get(slug) || 0;
+        if ((submission.points || 0) > current) {
+          maxPointsByProblem.set(slug, submission.points || 0);
+        }
+      });
+
+      const totalPoints = Array.from(maxPointsByProblem.values()).reduce(
+        (sum, p) => sum + p,
+        0,
+      );
 
       // // Calculate user rank by points (simplified - could be optimized)
       // // Since we don't have a totalPoints field, we need to calculate it for all users
