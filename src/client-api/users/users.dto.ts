@@ -43,4 +43,8 @@ export class CreateUserDTO {
   @IsOptional()
   @IsString()
   clientIp?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  defaultRuntime?: string;
 }

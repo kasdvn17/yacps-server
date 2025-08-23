@@ -97,6 +97,7 @@ export class UsersController {
           username: body.username,
           fullname: body.fullname || null,
           password: hashed,
+          defaultRuntime: body.defaultRuntime,
           status: Config.ENABLE_MAIL_CONFIRMATION ? 'CONF_AWAITING' : 'ACTIVE',
         },
       });
