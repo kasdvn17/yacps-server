@@ -213,6 +213,74 @@ export class SubmissionsService {
   }
 
   /**
+   * Create a submission when the file has already been uploaded and a
+   * presigned URL (or external URL) is provided. This avoids re-uploading
+   * the file and allows the frontend to finalize a submission using only a
+   * URL.
+   */
+  async createSubmissionWithUploadedUrl(
+    user: User,
+    problem: Problem,
+    language: string,
+    uploadedFileUrl: string,
+    uploadedFileName?: string,
+    contestantId?: number,
+    isPretest?: boolean,
+  ) {
+    try {
+      const submission = await this.prismaService.submission.create({
+        data: {
+          authorId: user.id,
+          problemId: problem.id,
+          contestantId: contestantId,
+          code: '[binary submission]',
+          language: language,
+          isPretest: isPretest || false,
+          // Intentionally do not persist uploadedFileUrl in DB
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              username: true,
+              fullname: true,
+            },
+          },
+          problem: {
+            select: {
+              id: true,
+              slug: true,
+              name: true,
+              points: true,
+            },
+          },
+        },
+      });
+
+      // Attach presigned URL to in-memory response so controller can return it
+      (submission as any)._presignedUrl = uploadedFileUrl;
+
+      // Enqueue
+      await this.queueService.addToQueue(submission.id);
+
+      this.logger.log(
+        `Submission ${submission.id} (file URL) created by user ${user.username} for problem ${problem.slug}`,
+      );
+
+      this.eventEmitter.emit('submission.created', {
+        submissionId: submission.id,
+        authorId: user.id,
+        problemId: problem.id,
+        timestamp: new Date(),
+      });
+
+      return submission;
+    } catch (err) {
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+    }
+  }
+
+  /**
    * Check if user can see test case data (input/output/expected)
    * Based on DMOJ's testcase visibility model
    */
