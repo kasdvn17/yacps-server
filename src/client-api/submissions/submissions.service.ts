@@ -16,6 +16,8 @@ import {
   GetObjectCommand,
 } from '@aws-sdk/client-s3';
 import { ProblemsService } from '../problems/problems.service';
+import * as http from 'http';
+import * as https from 'https';
 
 @Injectable()
 export class SubmissionsService {
@@ -258,7 +260,55 @@ export class SubmissionsService {
       });
 
       // Attach presigned URL to in-memory response so controller can return it
-      (submission as any)._presignedUrl = uploadedFileUrl;
+      // If the provided URL points to a remote location, attempt to fetch
+      // the file and persist it to our object storage under the submission ID
+      try {
+        const bucket = process.env.STORAGE_BUCKET;
+        const region = process.env.STORAGE_REGION || 'auto';
+        const endpoint = process.env.STORAGE_ENDPOINT;
+        const accessKeyId = process.env.STORAGE_ACCESS_KEY_ID;
+        const secretAccessKey = process.env.STORAGE_SECRET_ACCESS_KEY;
+
+        // Download remote file to buffer
+        const buffer = await this.downloadUrlToBuffer(uploadedFileUrl);
+
+        if (bucket && endpoint && accessKeyId && secretAccessKey && buffer) {
+          const s3 = new S3Client({
+            region,
+            credentials: { accessKeyId, secretAccessKey },
+            endpoint,
+            forcePathStyle: false,
+          });
+
+          const key = `scratchCodes/${submission.id}.sb3`;
+
+          await s3.send(
+            new PutObjectCommand({
+              Bucket: bucket,
+              Key: key,
+              Body: buffer,
+              ContentType: 'application/x.scratch.sb3',
+            }),
+          );
+
+          const presigned = await getSignedUrl(
+            s3,
+            new GetObjectCommand({ Bucket: bucket, Key: key }),
+            { expiresIn: 900 },
+          );
+
+          (submission as any)._presignedUrl = presigned;
+        } else {
+          // If we couldn't persist, fall back to returning the provided URL
+          (submission as any)._presignedUrl = uploadedFileUrl;
+        }
+      } catch (err) {
+        this.logger.warn(
+          'Failed to fetch/upload provided file URL, returning original URL',
+          err,
+        );
+        (submission as any)._presignedUrl = uploadedFileUrl;
+      }
 
       // Enqueue
       await this.queueService.addToQueue(submission.id);
@@ -278,6 +328,32 @@ export class SubmissionsService {
     } catch (err) {
       throw new InternalServerErrorException('UNKNOWN_ERROR', err);
     }
+  }
+
+  /**
+   * Download a URL to a Buffer using http/https
+   */
+  private downloadUrlToBuffer(url: string): Promise<Buffer> {
+    return new Promise<Buffer>((resolve, reject) => {
+      try {
+        const client = url.startsWith('https') ? https : http;
+        client
+          .get(url, (res) => {
+            if (res.statusCode && res.statusCode >= 400) {
+              reject(
+                new Error(`Failed to download URL, status ${res.statusCode}`),
+              );
+              return;
+            }
+            const chunks: Buffer[] = [];
+            res.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+            res.on('end', () => resolve(Buffer.concat(chunks)));
+          })
+          .on('error', (err: Error) => reject(new Error(err.message)));
+      } catch (err) {
+        reject(new Error(String(err)));
+      }
+    });
   }
 
   /**
