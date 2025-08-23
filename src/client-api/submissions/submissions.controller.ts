@@ -53,10 +53,17 @@ export class SubmissionsController {
     @Body() body: any,
     @LoggedInUser() user: User,
   ) {
-    // Basic validation
-    if (!file) throw new BadRequestException('NO_FILE');
+    // Basic validation: require problemSlug and language
     if (!body.problemSlug || !body.language)
       throw new BadRequestException('MISSING_FIELDS');
+
+    // If no file buffer was sent, allow a presigned `uploadedFile` URL to be
+    // provided by the frontend (e.g., when the client staged an .sb3 locally
+    // or via a temporary upload proxy). We will create the submission and
+    // attach the provided URL to the response (not persisted).
+    if (!file && !body.uploadedFile) {
+      throw new BadRequestException('NO_FILE');
+    }
 
     const problem = await this.problemsService.findViewableProblemWithSlug(
       body.problemSlug,
@@ -69,26 +76,41 @@ export class SubmissionsController {
       throw new BadRequestException('LANGUAGE_NOT_SUPPORTED');
     }
 
-    // Forward file buffer to the service; the service will create the submission
-    // and upload the file to object storage using the submission ID as the key.
-    const submission = await this.submissionsService.createSubmissionWithFile(
-      user,
-      problem,
-      body.language,
-      file.buffer,
-      file.originalname,
-      body.contestantId,
-      body.isPretest,
-    );
+    let submission;
+    if (file) {
+      // Forward file buffer to the service; the service will create the submission
+      // and upload the file to object storage using the submission ID as the key.
+      submission = await this.submissionsService.createSubmissionWithFile(
+        user,
+        problem,
+        body.language,
+        file.buffer,
+        file.originalname,
+        body.contestantId,
+        body.isPretest,
+      );
+    } else {
+      // No buffer: use the provided presigned/external URL
+      submission =
+        await this.submissionsService.createSubmissionWithUploadedUrl(
+          user,
+          problem,
+          body.language,
+          body.uploadedFile,
+          body.uploadedFileName,
+          body.contestantId,
+          body.isPretest,
+        );
+    }
 
     // Prefer the presigned URL returned by the service if available
-    const presigned = (submission as any)?._presignedUrl as string | undefined;
+    const presigned = submission?._presignedUrl;
 
     return {
       success: true,
       data: submission,
       url: presigned || null,
-      name: file.originalname,
+      name: file ? file.originalname : body.uploadedFileName || null,
     };
   }
 
