@@ -516,6 +516,40 @@ export class JudgeManagerService implements OnModuleInit {
   }
 
   /**
+   * Handle internal errors reported by judges (e.g., failed to download file)
+   */
+  @OnEvent('submission.internal-error')
+  async handleInternalError(data: {
+    judgeConnectionId: string;
+    judgeName: string;
+    submissionId: number;
+    error: string;
+  }) {
+    this.logger.warn(
+      `Handling internal error for submission ${data.submissionId} from judge ${data.judgeName}`,
+    );
+
+    // Use queueService.failSubmission to free the judge and either retry or mark as ISE
+    try {
+      await this.queueService.failSubmission(
+        data.submissionId,
+        data.judgeName,
+        data.error || 'Internal error reported by judge',
+      );
+
+      // Emit update to websocket clients
+      this.eventEmitter.emit('submission.update', {
+        submissionId: data.submissionId,
+        verdict: SubmissionVerdict.ISE,
+        errorMessage: data.error,
+        timestamp: new Date(),
+      });
+    } catch (err) {
+      this.logger.error('Failed to process internal-error event:', err);
+    }
+  }
+
+  /**
    * Map DMOJ status to our submission verdict enum
    * Based on dmoj/result.py - DMOJ uses bit flags that can be combined
    */

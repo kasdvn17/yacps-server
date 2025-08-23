@@ -289,6 +289,9 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       case 'submission-aborted':
         this.handleSubmissionAborted(judgeConnectionId, packet);
         break;
+      case 'internal-error':
+        this.handleInternalError(judgeConnectionId, packet);
+        break;
       case 'submission-acknowledged':
         this.handleSubmissionAcknowledged(judgeConnectionId, packet);
         break;
@@ -298,6 +301,24 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
       default:
         this.logger.warn(`❓ Unknown packet type: ${packet.name}`);
     }
+  }
+
+  private handleInternalError(judgeConnectionId: string, data: any): void {
+    this.logger.error(
+      `🛑 Internal error from judge ${judgeConnectionId}:`,
+      data,
+    );
+
+    const judgeName =
+      this.getJudgeNameFromConnectionId(judgeConnectionId) || 'unknown';
+
+    // Emit an event so judge-manager / queue service can handle freeing the judge
+    this.eventEmitter.emit('submission.internal-error', {
+      judgeConnectionId,
+      judgeName,
+      submissionId: data['submission-id'],
+      error: data.log || data.error || JSON.stringify(data),
+    });
   }
 
   /**
