@@ -10,6 +10,8 @@ import { JudgeModule } from './judge/judge.module';
 import { PrismaModule } from '@/prisma/prisma.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { getRealIp } from './utils';
+import { CategoriesModule } from './categories/categories.module';
+import { TypesModule } from './types/types.module';
 
 @Module({
   controllers: [ContestsController],
@@ -23,6 +25,8 @@ import { getRealIp } from './utils';
     SubmissionsModule,
     JudgeModule,
     PrismaModule,
+    CategoriesModule,
+    TypesModule,
     ThrottlerModule.forRoot([
       {
         limit: 5,
@@ -50,6 +54,14 @@ import { getRealIp } from './utils';
       {
         path: '/client/judge',
         module: JudgeModule,
+      },
+      {
+        path: '/client/categories',
+        module: CategoriesModule,
+      },
+      {
+        path: '/client/types',
+        module: TypesModule,
       },
     ]),
   ],

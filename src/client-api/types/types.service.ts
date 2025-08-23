@@ -4,17 +4,17 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
-import { Category } from '@prisma/client';
+import { Type } from '@prisma/client';
 
 @Injectable()
-export class CategoriesService {
-  private readonly logger = new Logger(CategoriesService.name);
+export class TypesService {
+  private readonly logger = new Logger(TypesService.name);
   constructor(private readonly prismaService: PrismaService) {}
 
-  async getCategoriesName(): Promise<string[]> {
+  async getTypesName(): Promise<string[]> {
     try {
       return (
-        await this.prismaService.category.findMany({
+        await this.prismaService.type.findMany({
           select: {
             name: true,
           },
@@ -26,9 +26,9 @@ export class CategoriesService {
     }
   }
 
-  async findCategories(): Promise<Category[]> {
+  async findTypes(): Promise<Type[]> {
     try {
-      return await this.prismaService.category.findMany();
+      return await this.prismaService.type.findMany();
     } catch (err) {
       this.logger.error(err);
       throw new InternalServerErrorException(err);
