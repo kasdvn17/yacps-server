@@ -212,13 +212,20 @@ export class UsersController {
       });
 
       // Calculate total points from submissions by taking the highest score per problem
+      // and count problemsSolved as unique problems with at least one AC verdict.
       const maxPointsByProblem = new Map<string, number>();
+      const solvedProblems = new Set<string>();
       submissions.forEach((submission) => {
         const slug = submission.problem?.slug;
         if (!slug) return;
+        const pts = submission.points || 0;
         const current = maxPointsByProblem.get(slug) || 0;
-        if ((submission.points || 0) > current) {
-          maxPointsByProblem.set(slug, submission.points || 0);
+        if (pts > current) {
+          maxPointsByProblem.set(slug, pts);
+        }
+        // Consider a problem solved if any submission for that problem has verdict AC
+        if (submission.verdict === 'AC') {
+          solvedProblems.add(slug);
         }
       });
 
@@ -226,6 +233,7 @@ export class UsersController {
         (sum, p) => sum + p,
         0,
       );
+      const problemsSolved = solvedProblems.size;
 
       // // Calculate user rank by points (simplified - could be optimized)
       // // Since we don't have a totalPoints field, we need to calculate it for all users
@@ -268,6 +276,7 @@ export class UsersController {
 
       return {
         totalPoints,
+        problemsSolved,
         // rankByPoints: userRank,
         submissions: transformedSubmissions,
         bio: '', // User model doesn't have bio field
@@ -304,6 +313,81 @@ export class UsersController {
       if (err instanceof NotFoundException) {
         throw err;
       }
+      this.logger.error(err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+    }
+  }
+
+  @Get('/all')
+  @Public()
+  async getAllUsers() {
+    try {
+      const users = await this.usersService.findUsers({}, false, false, 1000);
+      // Fetch all submissions for these users so we can compute aggregates
+      const userIds = users.map((u) => u.id);
+      const submissions = await this.prismaService.submission.findMany({
+        where: {
+          authorId: { in: userIds },
+        },
+        select: {
+          authorId: true,
+          points: true,
+          verdict: true,
+          problem: {
+            select: {
+              slug: true,
+            },
+          },
+        },
+      });
+
+      // Map userId -> Map<problemSlug, maxPoints>
+      const maxPointsByUser = new Map<any, Map<string, number>>();
+      // Map userId -> Set<solvedProblemSlug>
+      const solvedByUser = new Map<any, Set<string>>();
+
+      submissions.forEach((sub) => {
+        const uid = sub.authorId;
+        const slug = sub.problem?.slug;
+        if (!slug) return;
+        const pts = sub.points || 0;
+
+        let perUser = maxPointsByUser.get(uid);
+        if (!perUser) {
+          perUser = new Map<string, number>();
+          maxPointsByUser.set(uid, perUser);
+        }
+        const current = perUser.get(slug) || 0;
+        if (pts > current) perUser.set(slug, pts);
+
+        if (sub.verdict === 'AC') {
+          let solved = solvedByUser.get(uid);
+          if (!solved) {
+            solved = new Set<string>();
+            solvedByUser.set(uid, solved);
+          }
+          solved.add(slug);
+        }
+      });
+
+      const sanitizedUsers = users.map((user) => {
+        const perUser = maxPointsByUser.get(user.id);
+        const totalPoints = perUser
+          ? Array.from(perUser.values()).reduce((s, p) => s + p, 0)
+          : 0;
+        const problemsSolved = solvedByUser.get(user.id)?.size || 0;
+
+        return {
+          username: user.username,
+          rating: user.rating,
+          totalPoints,
+          problemsSolved,
+          isDeleted: user.isDeleted,
+        };
+      });
+
+      return sanitizedUsers;
+    } catch (err) {
       this.logger.error(err);
       throw new InternalServerErrorException('UNKNOWN_ERROR', err);
     }
