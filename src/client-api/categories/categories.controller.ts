@@ -9,4 +9,10 @@ export class CategoriesController {
   async getCategoriesName() {
     return await this.categoriesService.getCategoriesName();
   }
+
+  @Get('/all')
+  async getAllCategories() {
+    const cats = await this.categoriesService.findCategories();
+    return cats.map((c) => ({ id: c.id, name: c.name }));
+  }
 }
