@@ -9,4 +9,10 @@ export class TypesController {
   async getTypesName() {
     return await this.typesService.getTypesName();
   }
+
+  @Get('/all')
+  async getAllTypes() {
+    const types = await this.typesService.findTypes();
+    return types.map((t) => ({ id: t.id, name: t.name }));
+  }
 }

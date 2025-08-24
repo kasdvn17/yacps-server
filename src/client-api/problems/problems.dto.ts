@@ -54,7 +54,40 @@ export class CreateProblemDTO {
   @IsOptional()
   types?: number[];
 
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  allowedLanguages?: string[];
+
   @IsString()
   @IsOptional()
   solution?: string;
+}
+
+export class UpdateProblemDTO {
+  @IsString()
+  @IsOptional()
+  slug?: string;
+
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsNumber()
+  @IsOptional()
+  categoryId?: number;
+
+  @IsArray()
+  @IsNumber({ allowNaN: false }, { each: true })
+  @IsOptional()
+  types?: number[];
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  allowedLanguages?: string[];
 }

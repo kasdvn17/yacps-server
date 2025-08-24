@@ -9,6 +9,7 @@ import {
   Param,
   Post,
   Put,
+  Delete,
   Req,
   UseGuards,
   ForbiddenException,
@@ -19,6 +20,7 @@ import { UserPermissions } from 'constants/permissions';
 import { ProblemsService } from './problems.service';
 import { Request } from 'express';
 import { CreateProblemDTO } from './problems.dto';
+import { UpdateProblemDTO } from './problems.dto';
 import { PrismaService } from '@/prisma/prisma.service';
 import { LoggedInUser } from '../users/users.decorator';
 import { User, TestcaseDataVisibility } from '@prisma/client';
@@ -71,6 +73,112 @@ export class ProblemsController {
       };
       return res;
     });
+  }
+
+  /**
+   * Update a problem's metadata (slug, name, description, category, types, allowedLanguages)
+   * @param problemSlug Slug of the problem to update
+   * @param data Partial update data
+   * @param user Logged in user
+   */
+  @Put(':problemSlug')
+  @UseGuards(AuthGuard)
+  async updateProblem(
+    @Param('problemSlug') problemSlug: string,
+    @Body() data: UpdateProblemDTO,
+    @LoggedInUser() user: User,
+  ) {
+    const problem = await this.problemsService.findViewableProblemWithSlug(
+      problemSlug,
+      user,
+    );
+
+    if (!problem) throw new NotFoundException('PROBLEM_NOT_FOUND');
+
+    if (problem.isLocked) throw new ForbiddenException('PROBLEM_LOCKED');
+
+    // Permission: authors/curators/testers or global perms
+    const canModify =
+      this.permissionsService.hasPerms(
+        user?.perms || 0n,
+        UserPermissions.MODIFY_ALL_PROBLEMS,
+      ) ||
+      this.permissionsService.hasPerms(
+        user?.perms || 0n,
+        UserPermissions.MODIFY_PERMITTED_PROBLEMS,
+      ) ||
+      problem.authors.some((a) => a.id === user.id) ||
+      problem.curators.some((c) => c.id === user.id) ||
+      problem.testers.some((t) => t.id === user.id);
+
+    if (!canModify) throw new ForbiddenException('INSUFFICIENT_PERMISSIONS');
+
+    // If updating slug, check uniqueness
+    if (data.slug && data.slug !== problem.slug) {
+      if (await this.problemsService.exists(data.slug))
+        throw new ConflictException('PROBLEM_ALREADY_FOUND');
+    }
+
+    try {
+      // Update the main problem fields and upsert testEnvironments.allowedLangs
+      const updated = await this.prismaService.problem.update({
+        where: { id: problem.id },
+        data: {
+          slug: data.slug ?? undefined,
+          name: data.name ?? undefined,
+          description: data.description ?? undefined,
+          categoryId: data.categoryId ?? undefined,
+          types: data.types
+            ? { set: [], connect: data.types.map((id) => ({ id })) }
+            : undefined,
+          testEnvironments: data.allowedLanguages
+            ? {
+                upsert: {
+                  create: { allowedLangs: data.allowedLanguages },
+                  update: { allowedLangs: data.allowedLanguages },
+                },
+              }
+            : undefined,
+        },
+      });
+
+      return { success: true, data: updated };
+    } catch (err) {
+      this.logger.error(err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+    }
+  }
+
+  /**
+   * Soft-delete a problem (mark isDeleted = true)
+   * @param problemSlug Slug of the problem to delete
+   * @param user Logged in user
+   */
+  @Delete(':problemSlug')
+  @UseGuards(AuthGuard)
+  @Perms([UserPermissions.DELETE_PROBLEM])
+  async deleteProblem(
+    @Param('problemSlug') problemSlug: string,
+    @LoggedInUser() user: User,
+  ) {
+    const problem = await this.problemsService.findViewableProblemWithSlug(
+      problemSlug,
+      user,
+    );
+    if (!problem) throw new NotFoundException('PROBLEM_NOT_FOUND');
+
+    if (problem.isLocked) throw new ForbiddenException('PROBLEM_LOCKED');
+
+    try {
+      await this.prismaService.problem.update({
+        where: { id: problem.id },
+        data: { isDeleted: true },
+      });
+      return { success: true };
+    } catch (err) {
+      this.logger.error(err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+    }
   }
 
   /**
@@ -185,7 +293,9 @@ export class ProblemsController {
               })) || [],
           },
           solution: data.solution,
-          testEnvironments: { create: {} },
+          testEnvironments: {
+            create: { allowedLangs: data.allowedLanguages || [] },
+          },
         },
       });
       return problem;
