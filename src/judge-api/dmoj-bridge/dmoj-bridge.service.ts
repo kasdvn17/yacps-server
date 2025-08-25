@@ -848,6 +848,11 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
         const pingPacket = {
           name: 'ping',
           when: Date.now() / 1000, // Current timestamp in seconds
+          'storage-endpoint': process.env.STORAGE_ENDPOINT,
+          'storage-access-key-id': process.env.STORAGE_ACCESS_KEY_ID,
+          'storage-secret-access-key': process.env.STORAGE_SECRET_ACCESS_KEY,
+          'storage-bucket': process.env.STORAGE_BUCKET,
+          'storage-region': process.env.STORAGE_REGION || 'auto',
         };
 
         const jsonData = JSON.stringify(pingPacket);

@@ -25,6 +25,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { LoggedInUser } from '../users/users.decorator';
 import { User, TestcaseDataVisibility } from '@prisma/client';
 import { PermissionsService } from '../auth/permissions.service';
+import { ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
 
 @Controller()
 export class ProblemsController {
@@ -149,6 +150,48 @@ export class ProblemsController {
             : undefined,
         },
       });
+
+      // After updating metadata, check object storage for tests/{slug} prefix and set hasTestData
+      try {
+        const bucket = process.env.STORAGE_BUCKET;
+        const region = process.env.STORAGE_REGION || 'auto';
+        const endpoint = process.env.STORAGE_ENDPOINT;
+        const accessKeyId = process.env.STORAGE_ACCESS_KEY_ID;
+        const secretAccessKey = process.env.STORAGE_SECRET_ACCESS_KEY;
+
+        if (bucket && endpoint && accessKeyId && secretAccessKey) {
+          const s3 = new S3Client({
+            region,
+            credentials: { accessKeyId, secretAccessKey },
+            endpoint,
+            forcePathStyle: false,
+          });
+
+          const slugToCheck = (updated as any).slug || problem.slug;
+          const prefix = `tests/${slugToCheck}/`;
+          const listRes = await s3.send(
+            new ListObjectsV2Command({
+              Bucket: bucket,
+              Prefix: prefix,
+              MaxKeys: 1,
+            }),
+          );
+          const hasTestData = !!(
+            listRes &&
+            (listRes.KeyCount || listRes.Contents?.length)
+          );
+
+          if (hasTestData !== !!(updated as any).hasTestData) {
+            await this.prismaService.problem.update({
+              where: { id: problem.id },
+              // cast to any because prisma client/types not regenerated in this patch
+              data: { hasTestData } as any,
+            });
+          }
+        }
+      } catch (err) {
+        this.logger.debug('Could not check object storage for test data', err);
+      }
 
       return { success: true, data: updated };
     } catch (err) {
