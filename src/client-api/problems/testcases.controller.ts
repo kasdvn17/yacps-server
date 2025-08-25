@@ -72,7 +72,7 @@ export class TestcasesController {
         const hash = crypto.createHash('sha256').update(buf).digest('hex');
         const size = buf.length;
 
-        await (this.prisma as any).problemArchive.create({
+        await this.prisma.problemArchive.create({
           data: {
             problemId: problem.id,
             filename: body.name || 'upload.zip',
