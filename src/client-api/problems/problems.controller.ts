@@ -134,8 +134,16 @@ export class ProblemsController {
           testEnvironments: data.allowedLanguages
             ? {
                 upsert: {
-                  create: { allowedLangs: data.allowedLanguages },
-                  update: { allowedLangs: data.allowedLanguages },
+                  create: {
+                    allowedLangs: data.allowedLanguages,
+                    memoryLimit: data.memoryLimit,
+                    timeLimit: data.timeLimit,
+                  },
+                  update: {
+                    allowedLangs: data.allowedLanguages,
+                    memoryLimit: data.memoryLimit,
+                    timeLimit: data.timeLimit,
+                  },
                 },
               }
             : undefined,
@@ -294,7 +302,11 @@ export class ProblemsController {
           },
           solution: data.solution,
           testEnvironments: {
-            create: { allowedLangs: data.allowedLanguages || [] },
+            create: {
+              allowedLangs: data.allowedLanguages || [],
+              timeLimit: data.timeLimit,
+              memoryLimit: data.memoryLimit,
+            },
           },
         },
       });
