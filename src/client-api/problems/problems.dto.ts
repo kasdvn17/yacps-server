@@ -4,6 +4,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Max,
 } from 'class-validator';
 
 export class CreateProblemDTO {
@@ -30,6 +31,13 @@ export class CreateProblemDTO {
   @IsString()
   @IsOptional()
   output?: string;
+
+  @IsNumber()
+  @Max(60, { message: 'timeLimit must not exceed 60 seconds' })
+  timeLimit: number;
+
+  @IsNumber()
+  memoryLimit: number;
 
   @IsArray()
   @IsString({ each: true })
@@ -76,6 +84,13 @@ export class UpdateProblemDTO {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @IsNumber()
+  @Max(60, { message: 'timeLimit must not exceed 60 seconds' })
+  timeLimit: number;
+
+  @IsNumber()
+  memoryLimit: number;
 
   @IsNumber()
   @IsOptional()
