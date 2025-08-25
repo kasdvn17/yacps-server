@@ -241,10 +241,14 @@ model Problem {
   submissions      Submission[]
   testEnvironments ProblemTestEnvironment?
   testCases        ProblemTestCase[]
+  archives         ProblemArchive[]
   solution         String?
 
   // Test case visibility controls
   testcaseDataVisibility TestcaseDataVisibility @default(AUTHOR_ONLY)
+
+  // Whether this problem currently has test data uploaded to object storage
+  hasTestData Boolean @default(false)
 
   isDeleted Boolean @default(false)
   isPublic  Boolean @default(true)
@@ -376,6 +380,21 @@ model SubmissionTestCase {
   @@unique([submissionId, caseNumber])
   @@index([submissionId])
   @@index([submissionId, caseNumber])
+}
+
+// Archive records for problem test uploads
+model ProblemArchive {
+  id        Int     @id @default(autoincrement())
+  problem   Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  problemId Int
+
+  filename String
+  url      String
+  sha256   String
+  size     Int
+  hasInit  Boolean @default(false)
+
+  createdAt DateTime @default(now())
 }
 
 // Submission queue for managing judge assignment
