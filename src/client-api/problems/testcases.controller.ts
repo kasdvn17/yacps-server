@@ -11,8 +11,6 @@ import axios from 'axios';
 import { AuthGuard } from '@/client-api/auth/auth.guard';
 import { LoggedInUser } from '@/client-api/users/users.decorator';
 import { User } from '@prisma/client';
-// JSZip doesn't ship types in this project; ignore TS for runtime import
-// @ts-expect-error - runtime import, types not present in project
 import JSZip from 'jszip';
 import { PrismaService } from '@/prisma/prisma.service';
 
