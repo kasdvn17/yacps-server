@@ -155,6 +155,10 @@ export class TestcasesController {
               if (!currentBatch.batched || currentBatch.batched.length === 0) {
                 // skip empty
               } else {
+                // if previous batch was marked pretest, also collect it
+                if (currentBatch.is_pretest) {
+                  pretest.push(currentBatch);
+                }
                 test_cases.push(currentBatch);
               }
             }
@@ -180,6 +184,10 @@ export class TestcasesController {
               if (!currentBatch.batched || currentBatch.batched.length === 0) {
                 // do nothing
               } else {
+                if (currentBatch.is_pretest) {
+                  // Collect into pretest array so YAML can anchor it
+                  pretest.push(currentBatch);
+                }
                 test_cases.push(currentBatch);
               }
               currentBatch = null;
@@ -199,15 +207,25 @@ export class TestcasesController {
           if (c.output_prefix != null)
             item['output_prefix_length'] = c.output_prefix;
           if (c.checker) item['checker'] = c.checker;
+
           if (currentBatch) {
             currentBatch.batched.push(item);
           } else {
-            test_cases.push(item);
+            if (c.is_pretest) {
+              // For pretest single cases, include in pretest array and also
+              // push the same object into test_cases so YAML can anchor it.
+              pretest.push(item);
+              test_cases.push(item);
+            } else {
+              test_cases.push(item);
+            }
           }
         }
 
-        if (test_cases.length) init['test_cases'] = test_cases;
+        // Ensure pretest_test_cases is emitted before test_cases so YAML can
+        // create anchors for pretest entries and reference them in test_cases
         if (pretest.length) init['pretest_test_cases'] = pretest;
+        if (test_cases.length) init['test_cases'] = test_cases;
 
         // Attach checker information (support multiple types similar to VNOI)
         if (checker) {
