@@ -23,7 +23,6 @@ export class TestcasesController {
     private readonly permissionsService: PermissionsService,
   ) {}
 
-  // POST /:slug/finalize-testcase-upload
   @UseGuards(AuthGuard)
   @Post('/:slug/finalize-testcase-upload')
   async finalize(
@@ -31,16 +30,11 @@ export class TestcasesController {
     @Body() body: any,
     @LoggedInUser() user: User,
   ) {
-    // Accept either URL-based flow { url, name } or payload-based flow:
-    // { cases: [{ input, output?, type? }], checker?: { url|key|name } | { default: true }, selectedIndices?: number[] }
-
-    // Verify user has permission to modify the problem (author/curator/tester or global)
     const problem = await this.prisma.problem.findUnique({
       where: { slug },
       include: { authors: true, curators: true, testers: true },
     });
     if (!problem) throw new InternalServerErrorException('PROBLEM_NOT_FOUND');
-
     const canEditTestCases = this.permissionsService.hasPerms(
       user?.perms || 0n,
       UserPermissions.EDIT_PROBLEM_TESTS,
@@ -48,22 +42,17 @@ export class TestcasesController {
     const isAuthor = problem.authors.some((a) => a.id === user.id);
     const isCurator = problem.curators.some((c) => c.id === user.id);
     const isTester = problem.testers.some((t) => t.id === user.id);
-    if (!isAuthor && !isCurator && !isTester && !canEditTestCases) {
+    if (!isAuthor && !isCurator && !isTester && !canEditTestCases)
       throw new ForbiddenException('INSUFFICIENT_PERMISSIONS');
-    }
 
-    // URL flow: preserve existing behaviour
+    // Accept URL-based archive uploads
     if (body && body.url) {
       try {
         const res = await axios.get(body.url, { responseType: 'arraybuffer' });
         const buf = Buffer.from(res.data);
-
-        // simple zip magic (PK\x03\x04)
-        if (buf.length < 4 || buf.readUInt32LE(0) !== 0x04034b50) {
+        if (buf.length < 4 || buf.readUInt32LE(0) !== 0x04034b50)
           throw new InternalServerErrorException('NOT_A_ZIP');
-        }
 
-        // try parse with JSZip to look for init.yml
         let hasInit = false;
         try {
           const zip = await JSZip.loadAsync(buf);
@@ -74,15 +63,13 @@ export class TestcasesController {
               n.toLowerCase().endsWith('init.yaml'),
           );
         } catch {
-          // non-fatal; we already validated magic bytes
+          /* empty */
         }
 
-        // Record archive metadata and mark the problem as having test data
         try {
           const crypto = await import('crypto');
           const hash = crypto.createHash('sha256').update(buf).digest('hex');
           const size = buf.length;
-
           await this.prisma.problemArchive.create({
             data: {
               problemId: problem.id,
@@ -93,41 +80,40 @@ export class TestcasesController {
               hasInit,
             },
           });
-
           await this.prisma.problem.update({
             where: { id: problem.id },
             data: { hasTestData: true } as any,
           });
-        } catch {
-          // non-fatal
+        } catch (e) {
+          console.error('Failed to record archive', e);
         }
 
-        // Minimal: return whether init.yml found
         return { success: true, message: 'Archive received', hasInit };
       } catch {
         throw new InternalServerErrorException('DOWNLOAD_OR_PARSE_FAILED');
       }
     }
 
-    // Payload flow: generate init.yml from provided cases/checker
+    // Payload-based finalize: build VNOI-like init.yml
     if (body && Array.isArray(body.cases)) {
       try {
-        // Build init structure (VNOI-like)
         const cases: any[] = body.cases;
         const checker = body.checker || null;
-
         const init: any = {};
 
-        // Archive pointer: we'll set archive to archive.zip if an archive exists later
-        init['archive'] = `archive.zip`;
+        init.archive =
+          body.archive ||
+          body.archiveName ||
+          (body.archiveUrl
+            ? String(body.archiveUrl).split('/').pop()?.split('?')[0]
+            : null) ||
+          'archive.zip';
 
-        // Build test_cases and pretest_test_cases by handling S (start batch), C (case), E (end batch)
         const selectedIndices: number[] | null = Array.isArray(
           body.selectedIndices,
         )
           ? body.selectedIndices
           : null;
-
         const pretest: any[] = [];
         const test_cases: any[] = [];
 
@@ -139,36 +125,31 @@ export class TestcasesController {
           output_limit_length?: number | null;
           output_prefix_length?: number | null;
         };
-
         let currentBatch: Batch | null = null;
+        let totalPoints = 0;
 
         for (let i = 0; i < cases.length; i++) {
           if (selectedIndices && !selectedIndices.includes(i)) continue;
           const c = cases[i];
-
           const type = c.type || 'C';
 
           if (type === 'S') {
-            // start batch
-            if (currentBatch) {
-              // end previous batch implicitly
-              if (!currentBatch.batched || currentBatch.batched.length === 0) {
-                // skip empty
-              } else {
-                // if previous batch was marked pretest, also collect it
-                if (currentBatch.is_pretest) {
-                  pretest.push(currentBatch);
-                }
-                test_cases.push(currentBatch);
-              }
+            if (
+              currentBatch &&
+              currentBatch.batched &&
+              currentBatch.batched.length
+            ) {
+              if (currentBatch.is_pretest) pretest.push(currentBatch);
+              test_cases.push(currentBatch);
             }
             currentBatch = {
               points: c.points ?? 0,
               batched: [],
               is_pretest: !!c.is_pretest,
             };
+            if (c.points != null) totalPoints += c.points;
             if (c.generator_args)
-              currentBatch.generator_args = (c.generator_args as string).split(
+              currentBatch.generator_args = String(c.generator_args).split(
                 '\n',
               );
             if (c.output_limit != null)
@@ -179,231 +160,246 @@ export class TestcasesController {
           }
 
           if (type === 'E') {
-            // end batch
             if (currentBatch) {
-              if (!currentBatch.batched || currentBatch.batched.length === 0) {
-                // do nothing
-              } else {
-                if (currentBatch.is_pretest) {
-                  // Collect into pretest array so YAML can anchor it
-                  pretest.push(currentBatch);
-                }
-                test_cases.push(currentBatch);
-              }
+              if (!currentBatch.batched || currentBatch.batched.length === 0)
+                throw new InternalServerErrorException(
+                  'EMPTY_BATCH_NOT_ALLOWED',
+                );
+              if (currentBatch.is_pretest) pretest.push(currentBatch);
+              test_cases.push(currentBatch);
               currentBatch = null;
             }
             continue;
           }
 
-          // type C (normal case)
           const item: any = {};
           if (c.input) item['in'] = c.input;
           if (c.output) item['out'] = c.output;
           if (c.points != null) item['points'] = c.points;
           if (c.generator_args)
-            item['generator_args'] = (c.generator_args as string).split('\n');
+            item['generator_args'] = String(c.generator_args).split('\n');
           if (c.output_limit != null)
             item['output_limit_length'] = c.output_limit;
           if (c.output_prefix != null)
             item['output_prefix_length'] = c.output_prefix;
-          if (c.checker) item['checker'] = c.checker;
+          if (c.checker) item['checker'] = makeCheckerFor(c.checker);
 
-          if (currentBatch) {
-            currentBatch.batched.push(item);
-          } else {
+          if (currentBatch) currentBatch.batched.push(item);
+          else {
             if (c.is_pretest) {
-              // For pretest single cases, include in pretest array and also
-              // push the same object into test_cases so YAML can anchor it.
               pretest.push(item);
               test_cases.push(item);
             } else {
+              if (c.points == null)
+                throw new InternalServerErrorException(
+                  'POINTS_MUST_BE_DEFINED_FOR_NON_BATCH_CASES',
+                );
+              totalPoints += c.points || 0;
               test_cases.push(item);
             }
           }
         }
 
-        // Ensure pretest_test_cases is emitted before test_cases so YAML can
-        // create anchors for pretest entries and reference them in test_cases
-        if (pretest.length) init['pretest_test_cases'] = pretest;
-        if (test_cases.length) init['test_cases'] = test_cases;
+        if (currentBatch) {
+          if (!currentBatch.batched || currentBatch.batched.length === 0)
+            throw new InternalServerErrorException('EMPTY_BATCH_NOT_ALLOWED');
+          if (currentBatch.is_pretest) pretest.push(currentBatch);
+          test_cases.push(currentBatch);
+          currentBatch = null;
+        }
 
-        // Attach checker information (support multiple types similar to VNOI)
-        if (checker) {
-          // checker payload shapes sent from FE may be:
-          // { default: true }
-          // { name: 'bridged', url, key, type: 'bridged' }
-          // { name: 'floats', args: { precision } }
-          // { name: 'custom', args: {...} }
-          if (checker.default) {
-            // Use judge default checker -- no explicit entry needed
-          } else if (checker.type === 'bridged' || checker.url || checker.key) {
-            // Bridged / uploaded checker: VNOI-style prefers embedding checker args
-            // with file basenames and checker metadata (type/lang), avoiding
-            // embedding signed URLs or full storage paths when the file is
-            // already present on the storage.
-            const ch: any = { name: (checker.name as string) || 'bridged' };
+        if (pretest.length) init.pretest_test_cases = pretest;
+        if (test_cases.length) init.test_cases = test_cases;
+        if (totalPoints <= 0)
+          throw new InternalServerErrorException(
+            'TOTAL_POINTS_MUST_BE_GREATER_THAN_ZERO',
+          );
 
-            // If the frontend provided a direct URL (remote checker), keep the url
-            // for immediate reference. But when a storage key/path is provided,
-            // follow VNOI and emit only the basename in args.files and metadata
-            // like language/type if present.
-            if (checker.url && !checker.key) {
-              ch['url'] = checker.url;
-            }
+        // Port of LQDOJ make_checker(): accepts either a simple string or
+        // an object { name, args, key, url }
+        const normalizeChecker = (ck: any) => {
+          if (!ck) return null;
+          // If caller passed a plain string (e.g. 'standard', 'interact') return as-is
+          if (typeof ck === 'string') return ck;
+          // If ck has a 'default' marker, ignore
+          if (ck.default) return null;
 
-            // If a storage key/path was provided (checker.key), emit VNOI-style
-            // args: files: basename, lang/type if available, and avoid including
-            // the full path. This tells downstream systems the checker file name
-            // while not forcing re-download since the file is already in the
-            // problem's storage.
-            if (checker.key) {
-              const pathStr = checker.key as string;
-              // take basename
-              const parts = pathStr.split('/');
-              const basename = parts[parts.length - 1] || pathStr;
-              ch['args'] = ch['args'] || {};
-              ch['args']['files'] = basename;
-              // Prefer args.lang/type if present (FE sends under args), otherwise
-              // fallback to top-level checker.lang/checker.type for compatibility.
-              const args = (checker.args || {}) as Record<string, any>;
-              if (args && args.lang) {
-                ch['args']['lang'] = args.lang;
-              } else if (checker.lang) {
-                ch['args']['lang'] = checker.lang;
-              }
+          const name = ck.name || 'bridged';
+          const args: Record<string, any> = ck.args || {};
 
-              if (args && args.type) {
-                ch['args']['type'] = args.type;
-              } else if (checker.type) {
-                ch['args']['type'] = checker.type;
-              }
-
-              // If still missing type/lang, infer common defaults from file extension
-              // to match VNOI behavior: for C++ checkers default to testlib + CPP20.
-              const ext = (basename.split('.').pop() || '').toLowerCase();
-              if (!ch['args']['type'] && ext === 'cpp') {
-                ch['args']['type'] = 'testlib';
-              }
-              if (!ch['args']['lang'] && ext === 'cpp') {
-                ch['args']['lang'] = 'CPP20';
-              }
-            }
-
-            init['checker'] = ch;
-          } else if (
-            checker.name === 'floats' ||
-            (checker.name && (checker.name as string).startsWith('floats'))
-          ) {
-            // Floating point checker with precision
-            init['checker'] = {
+          // Floats family -> 'floats' with precision default 6
+          if (name && name.startsWith('floats')) {
+            return {
               name: 'floats',
-              args: checker.args || { precision: 6 },
-            };
-          } else if (checker.args) {
-            // Generic custom checker args
-            init['checker'] = {
-              name: checker.name || 'custom',
-              args: checker.args,
+              args: { precision: args.precision ?? 6 },
             } as any;
           }
-        }
 
-        // Handle grader variations similar to VNOI's make_grader()
-        // - output_only => init.output_only = true
-        // - standard + file IO => init.file_io = { input, output }
-        // - signature => init.signature_grader = { entry, header, allow_main? }
-        // interactive handled below.
-        const graderChoice = body.grader || null;
-        if (graderChoice === 'output_only') {
-          init['output_only'] = true;
-        } else if (graderChoice === 'standard') {
-          // file IO via grader args or explicit fields
-          const ioMethodBody =
-            body.ioMethod || body.grader_args?.io_method || null;
-          if (ioMethodBody === 'file') {
-            const inputFile =
-              body.ioInputFile || body.grader_args?.io_input_file || '';
-            const outputFile =
-              body.ioOutputFile || body.grader_args?.io_output_file || '';
-            if (!inputFile || !outputFile) {
-              // don't throw; VNOI raised, but here we just skip if missing
-            } else {
-              init['file_io'] = { input: inputFile, output: outputFile } as any;
-            }
+          // If explicit args.files provided, pass through
+          if (args.files) return { name, args: { ...args } } as any;
+
+          // If a storage key is provided (uploaded file), use basename
+          if (ck.key) {
+            const parts = String(ck.key).split('/');
+            const basename = parts[parts.length - 1] || String(ck.key);
+            const outArgs: any = { files: basename };
+            if (args.lang) outArgs.lang = args.lang;
+            if (args.type) outArgs.type = args.type;
+            // defaults for .cpp uploaded checkers
+            if (!outArgs.type && basename.toLowerCase().endsWith('.cpp'))
+              outArgs.type = 'testlib';
+            if (!outArgs.lang && basename.toLowerCase().endsWith('.cpp'))
+              outArgs.lang = 'CPP20';
+            return { name, args: outArgs } as any;
           }
-        } else if (graderChoice === 'signature') {
-          // Expect payload.signature = { entry, header, allow_main }
-          const sig = body.signature || body.grader_args || null;
-          if (sig && (sig.entry || sig.header)) {
-            init['signature_grader'] = {} as any;
-            if (sig.entry) init['signature_grader']['entry'] = sig.entry;
-            if (sig.header) init['signature_grader']['header'] = sig.header;
-            if (sig.allow_main) init['signature_grader']['allow_main'] = true;
+
+          // If a URL was provided, expose it and any args
+          if (ck.url) {
+            const out: any = { name };
+            if (args && Object.keys(args).length) out.args = { ...args };
+            out.url = ck.url;
+            return out;
           }
-        }
 
-        // If grader is interactive, emit VNOI-style `interactive` block.
-        // FE should send `grader` and checker.args; default feedback/unbuffered
-        // to true to match VNOI behavior unless FE specifies otherwise.
-        if (graderChoice === 'interactive') {
-          // If a bridged checker was uploaded and placed in init.checker, treat
-          // it as the interactor: move files/type/lang into init.interactive and
-          // remove init.checker to match VNOI's behavior.
-          const interactiveObj: Record<string, any> = {};
+          // If args exist, return them
+          if (args && Object.keys(args).length)
+            return { name, args: { ...args } };
 
+          // Fallback: return the name string (e.g. 'standard')
+          return name;
+        };
+
+        // Per-case make_checker: mirrors LQDOJ behaviour where some checkers
+        // like 'custom' return a plain filename, while 'customcpp'/'testlib'
+        // map to bridged descriptors.
+        function makeCheckerFor(caseChecker: any) {
+          if (!caseChecker) return null;
+          // plain string
+          if (typeof caseChecker === 'string') {
+            if (caseChecker === 'custom') return null; // frontend should supply uploaded key
+            if (caseChecker === 'customcpp')
+              return { name: 'bridged', args: { files: caseChecker } } as any;
+            if (caseChecker === 'testlib')
+              return {
+                name: 'bridged',
+                args: { files: caseChecker, type: 'testlib' },
+              } as any;
+            return caseChecker;
+          }
+          // object
+          // If custom -> return basename string when key/url provided
+          if (caseChecker.name === 'custom') {
+            if (caseChecker.key)
+              return String(caseChecker.key).split('/').pop();
+            if (caseChecker.args && caseChecker.args.files)
+              return caseChecker.args.files;
+            return null;
+          }
           if (
-            init['checker'] &&
-            init['checker'].args &&
-            init['checker'].args.files
+            caseChecker.name === 'customcpp' ||
+            caseChecker.name === 'testlib'
           ) {
-            const chArgs = init['checker'].args as Record<string, any>;
-            interactiveObj.files = chArgs.files;
-            if (chArgs.type) interactiveObj.type = chArgs.type;
-            if (chArgs.lang) interactiveObj.lang = chArgs.lang;
-
-            // remove checker entry when it's actually the interactor
-            delete init['checker'];
-          } else if (checker && checker.args && checker.args.files) {
-            const pArgs = checker.args as Record<string, any>;
-            interactiveObj.files = pArgs.files;
-            if (pArgs.type) interactiveObj.type = pArgs.type;
-            if (pArgs.lang) interactiveObj.lang = pArgs.lang;
+            // prefer uploaded key or args.files
+            const candidate = caseChecker.key
+              ? String(caseChecker.key).split('/').pop()
+              : caseChecker.args?.files;
+            const lang =
+              caseChecker.args?.lang ||
+              (candidate && candidate.toLowerCase().endsWith('.cpp')
+                ? 'CPP20'
+                : undefined);
+            const type = caseChecker.name === 'customcpp' ? 'lqdoj' : 'testlib';
+            if (candidate)
+              return {
+                name: 'bridged',
+                args: { files: candidate, lang, type },
+              } as any;
           }
-
-          // Feedback defaults to true (VNOI): allow override from payload
-          interactiveObj.feedback = body.interactive?.feedback ?? true;
-
-          // VNOI sets unbuffered at top-level; default true but allow override
-          if (
-            body.interactive &&
-            typeof body.interactive.unbuffered !== 'undefined'
-          ) {
-            init['unbuffered'] = body.interactive.unbuffered;
-          } else {
-            init['unbuffered'] = true;
-          }
-
-          if (Object.keys(interactiveObj).length) {
-            init['interactive'] = interactiveObj;
-          }
+          if (caseChecker.args)
+            return {
+              name: caseChecker.name || 'bridged',
+              args: caseChecker.args,
+            };
+          return caseChecker.name || null;
         }
 
-        // Dump YAML
+        const normalizedChecker = normalizeChecker(checker);
+
+        // LQDOJ: interactive is selected via checker value 'interact' or 'interacttl'
+        const checkerName = (checker && (checker.name || checker)) || null;
+        const isInteractiveChecker =
+          checkerName === 'interact' || checkerName === 'interacttl';
+
+        if (isInteractiveChecker) {
+          // prefer normalizedChecker args.files, otherwise fall back to raw checker.args.files
+          const chosen =
+            normalizedChecker &&
+            normalizedChecker.args &&
+            normalizedChecker.args.files
+              ? normalizedChecker
+              : checker && checker.args && checker.args.files
+                ? checker
+                : null;
+          if (chosen && chosen.args && chosen.args.files) {
+            init.interactive = {
+              files: chosen.args.files,
+              type:
+                checkerName === 'interact'
+                  ? 'lqdoj'
+                  : chosen.args.type || 'testlib',
+              lang: chosen.args.lang,
+              feedback: body.interactive?.feedback ?? true,
+            } as any;
+            init.unbuffered =
+              typeof body.interactive?.unbuffered !== 'undefined'
+                ? body.interactive.unbuffered
+                : true;
+          }
+        } else {
+          if (normalizedChecker) init.checker = normalizedChecker;
+        }
+        // output-only flag (LQDOJ uses data.output_only)
+        if (body.output_only || body.outputOnly) init.output_only = true;
+
+        // file IO mapping: support body.ioMethod='file' and explicit ioInputFile/ioOutputFile
+        const ioMethodBody =
+          body.ioMethod || body.grader_args?.io_method || null;
+        if (ioMethodBody === 'file') {
+          const inputFile =
+            body.ioInputFile ||
+            body.grader_args?.io_input_file ||
+            body.file_io?.input ||
+            '';
+          const outputFile =
+            body.ioOutputFile ||
+            body.grader_args?.io_output_file ||
+            body.file_io?.output ||
+            '';
+          if (inputFile && outputFile)
+            init.file_io = { input: inputFile, output: outputFile } as any;
+        }
+
+        // signature grader: accept body.signature or body.signature_grader
+        const sig =
+          body.signature || body.signature_grader || body.grader_args || null;
+        if (sig && (sig.entry || sig.header)) {
+          init.signature_grader = {} as any;
+          if (sig.entry) init.signature_grader.entry = sig.entry;
+          if (sig.header) init.signature_grader.header = sig.header;
+          if (sig.allow_main) init.signature_grader.allow_main = true;
+        }
+
         const yaml = await (async () => {
-          // dynamic import to avoid adding yaml dependency in this file top-level
           const mod = await import('js-yaml');
-          const dumper = mod.dump;
-          return dumper(init);
+          return mod.dump(init);
         })();
 
-        // Upload init.yml to object storage under tests/{slug}/init.yml
         try {
           const [{ S3Client, PutObjectCommand }, { getSignedUrl }] =
             await Promise.all([
               import('@aws-sdk/client-s3'),
               import('@aws-sdk/s3-request-presigner'),
             ]);
-
           const s3 = new S3Client({
             region: process.env.STORAGE_REGION || 'auto',
             endpoint: process.env.STORAGE_ENDPOINT,
@@ -413,7 +409,6 @@ export class TestcasesController {
             },
             forcePathStyle: false,
           });
-
           const key = `tests/${slug}/init.yml`;
           await s3.send(
             new PutObjectCommand({
@@ -423,8 +418,6 @@ export class TestcasesController {
               ContentType: 'text/yaml',
             } as any),
           );
-
-          // create a short-lived GET URL for backend record
           let downloadUrl = '';
           try {
             const { GetObjectCommand } = await import('@aws-sdk/client-s3');
@@ -439,8 +432,6 @@ export class TestcasesController {
           } catch {
             downloadUrl = `s3://${process.env.STORAGE_BUCKET}/${key}`;
           }
-
-          // Record an archive row pointing to the init.yml (not a full archive) so migrations/clients can see test data
           try {
             await this.prisma.problemArchive.create({
               data: {
@@ -452,13 +443,11 @@ export class TestcasesController {
                 hasInit: true,
               },
             });
-
             await this.prisma.problem.update({
               where: { id: problem.id },
               data: { hasTestData: true } as any,
             });
           } catch (e) {
-            // non-fatal
             console.error('Failed to record ProblemArchive for init.yml', e);
           }
         } catch (e) {
