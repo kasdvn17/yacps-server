@@ -109,8 +109,8 @@ export class TestcasesController {
 
         const init: any = {};
 
-        // Archive pointer: we'll set archive to tests/{slug}/archive.zip if an archive exists later
-        init['archive'] = `tests/${slug}/archive.zip`;
+        // Archive pointer: we'll set archive to archive.zip if an archive exists later
+        init['archive'] = `archive.zip`;
 
         // Build test_cases and pretest_test_cases by handling S (start batch), C (case), E (end batch)
         const selectedIndices: number[] | null = Array.isArray(
