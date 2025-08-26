@@ -237,12 +237,37 @@ export class TestcasesController {
           if (checker.default) {
             // Use judge default checker -- no explicit entry needed
           } else if (checker.type === 'bridged' || checker.url || checker.key) {
-            // Bridged / uploaded checker: prefer url if available for immediate reference
-            init['checker'] = {
-              name: (checker.name as string) || 'custom',
-            } as any;
-            if (checker.url) init['checker']['url'] = checker.url;
-            if (checker.key) init['checker']['path'] = checker.key;
+            // Bridged / uploaded checker: VNOI-style prefers embedding checker args
+            // with file basenames and checker metadata (type/lang), avoiding
+            // embedding signed URLs or full storage paths when the file is
+            // already present on the storage.
+            const ch: any = { name: (checker.name as string) || 'bridged' };
+
+            // If the frontend provided a direct URL (remote checker), keep the url
+            // for immediate reference. But when a storage key/path is provided,
+            // follow VNOI and emit only the basename in args.files and metadata
+            // like language/type if present.
+            if (checker.url && !checker.key) {
+              ch['url'] = checker.url;
+            }
+
+            // If a storage key/path was provided (checker.key), emit VNOI-style
+            // args: files: basename, lang/type if available, and avoid including
+            // the full path. This tells downstream systems the checker file name
+            // while not forcing re-download since the file is already in the
+            // problem's storage.
+            if (checker.key) {
+              const pathStr = checker.key as string;
+              // take basename
+              const parts = pathStr.split('/');
+              const basename = parts[parts.length - 1] || pathStr;
+              ch['args'] = ch['args'] || {};
+              ch['args']['files'] = basename;
+              if (checker.lang) ch['args']['lang'] = checker.lang;
+              if (checker.type) ch['args']['type'] = checker.type;
+            }
+
+            init['checker'] = ch;
           } else if (
             checker.name === 'floats' ||
             (checker.name && (checker.name as string).startsWith('floats'))
