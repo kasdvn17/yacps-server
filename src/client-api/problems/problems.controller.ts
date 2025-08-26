@@ -293,6 +293,16 @@ export class ProblemsController {
       testcaseDataVisibility: problem.testcaseDataVisibility,
       ...(problem.isDeleted && { isDeleted: true }),
       ...(problem.isLocked && { isLocked: true }),
+      // Include stored archives (uploaded test zips, init.yml, checkers) so frontend
+      // can present persistent download links for the uploaded files.
+      archives: (problem as any).archives
+        ? (problem as any).archives.map((a: any) => ({
+            id: a.id,
+            filename: a.filename,
+            url: a.url,
+            hasInit: a.hasInit,
+          }))
+        : [],
     };
     return res;
   }
