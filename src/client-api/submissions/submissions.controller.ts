@@ -337,6 +337,7 @@ export class SubmissionsController {
 
         return {
           ...testCase,
+          batchNumber: (testCase as any).batchNumber ?? null,
           input: canSeeTestcaseData
             ? testCase.input || problemTestCase?.input
             : undefined,
@@ -428,6 +429,7 @@ export class SubmissionsController {
             time: true,
             memory: true,
             points: true,
+            batchNumber: true,
             feedback: true,
           },
           orderBy: { caseNumber: 'asc' },
