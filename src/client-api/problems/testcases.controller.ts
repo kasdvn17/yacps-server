@@ -308,35 +308,72 @@ export class TestcasesController {
           }
         }
 
+        // Handle grader variations similar to VNOI's make_grader()
+        // - output_only => init.output_only = true
+        // - standard + file IO => init.file_io = { input, output }
+        // - signature => init.signature_grader = { entry, header, allow_main? }
+        // interactive handled below.
+        const graderChoice = body.grader || null;
+        if (graderChoice === 'output_only') {
+          init['output_only'] = true;
+        } else if (graderChoice === 'standard') {
+          // file IO via grader args or explicit fields
+          const ioMethodBody =
+            body.ioMethod || body.grader_args?.io_method || null;
+          if (ioMethodBody === 'file') {
+            const inputFile =
+              body.ioInputFile || body.grader_args?.io_input_file || '';
+            const outputFile =
+              body.ioOutputFile || body.grader_args?.io_output_file || '';
+            if (!inputFile || !outputFile) {
+              // don't throw; VNOI raised, but here we just skip if missing
+            } else {
+              init['file_io'] = { input: inputFile, output: outputFile } as any;
+            }
+          }
+        } else if (graderChoice === 'signature') {
+          // Expect payload.signature = { entry, header, allow_main }
+          const sig = body.signature || body.grader_args || null;
+          if (sig && (sig.entry || sig.header)) {
+            init['signature_grader'] = {} as any;
+            if (sig.entry) init['signature_grader']['entry'] = sig.entry;
+            if (sig.header) init['signature_grader']['header'] = sig.header;
+            if (sig.allow_main) init['signature_grader']['allow_main'] = true;
+          }
+        }
+
         // If grader is interactive, emit VNOI-style `interactive` block.
         // FE should send `grader` and checker.args; default feedback/unbuffered
         // to true to match VNOI behavior unless FE specifies otherwise.
-        const graderChoice = body.grader || null;
         if (graderChoice === 'interactive') {
-          // prefer checker.args if present
-          const chc = init['checker'] || checker || {};
+          // If a bridged checker was uploaded and placed in init.checker, treat
+          // it as the interactor: move files/type/lang into init.interactive and
+          // remove init.checker to match VNOI's behavior.
           const interactiveObj: Record<string, any> = {};
-          // If init.checker already has args.files etc (we set it above for bridged), use that
-          const chcArgs = (chc && (chc.args || {})) as Record<string, any>;
-          const payloadArgs = (checker && (checker.args || {})) as Record<
-            string,
-            any
-          >;
 
-          if (chcArgs && chcArgs.files) {
-            interactiveObj.files = chcArgs.files;
-            if (chcArgs.type) interactiveObj.type = chcArgs.type;
-            if (chcArgs.lang) interactiveObj.lang = chcArgs.lang;
-          } else if (payloadArgs && payloadArgs.files) {
-            interactiveObj.files = payloadArgs.files;
-            if (payloadArgs.type) interactiveObj.type = payloadArgs.type;
-            if (payloadArgs.lang) interactiveObj.lang = payloadArgs.lang;
+          if (
+            init['checker'] &&
+            init['checker'].args &&
+            init['checker'].args.files
+          ) {
+            const chArgs = init['checker'].args as Record<string, any>;
+            interactiveObj.files = chArgs.files;
+            if (chArgs.type) interactiveObj.type = chArgs.type;
+            if (chArgs.lang) interactiveObj.lang = chArgs.lang;
+
+            // remove checker entry when it's actually the interactor
+            delete init['checker'];
+          } else if (checker && checker.args && checker.args.files) {
+            const pArgs = checker.args as Record<string, any>;
+            interactiveObj.files = pArgs.files;
+            if (pArgs.type) interactiveObj.type = pArgs.type;
+            if (pArgs.lang) interactiveObj.lang = pArgs.lang;
           }
 
-          // Feedback/unbuffered defaults — use provided body flags if present
+          // Feedback defaults to true (VNOI): allow override from payload
           interactiveObj.feedback = body.interactive?.feedback ?? true;
 
-          // VNOI emits 'unbuffered' separately at top-level in many examples; put it at top-level
+          // VNOI sets unbuffered at top-level; default true but allow override
           if (
             body.interactive &&
             typeof body.interactive.unbuffered !== 'undefined'
