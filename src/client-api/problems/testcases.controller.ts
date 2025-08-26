@@ -13,10 +13,15 @@ import { LoggedInUser } from '@/client-api/users/users.decorator';
 import { User } from '@prisma/client';
 import JSZip from 'jszip';
 import { PrismaService } from '@/prisma/prisma.service';
+import { UserPermissions } from 'constants/permissions';
+import { PermissionsService } from '../auth/permissions.service';
 
 @Controller()
 export class TestcasesController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly permissionsService: PermissionsService,
+  ) {}
 
   // POST /:slug/finalize-testcase-upload
   @UseGuards(AuthGuard)
@@ -36,10 +41,14 @@ export class TestcasesController {
     });
     if (!problem) throw new InternalServerErrorException('PROBLEM_NOT_FOUND');
 
+    const canEditTestCases = this.permissionsService.hasPerms(
+      user?.perms || 0n,
+      UserPermissions.EDIT_PROBLEM_TESTS,
+    );
     const isAuthor = problem.authors.some((a) => a.id === user.id);
     const isCurator = problem.curators.some((c) => c.id === user.id);
     const isTester = problem.testers.some((t) => t.id === user.id);
-    if (!isAuthor && !isCurator && !isTester) {
+    if (!isAuthor && !isCurator && !isTester && !canEditTestCases) {
       throw new ForbiddenException('INSUFFICIENT_PERMISSIONS');
     }
 
