@@ -11,6 +11,8 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 @Injectable()
 export class JudgeManagerService implements OnModuleInit {
   private readonly logger = new Logger(JudgeManagerService.name);
+  // Track current batch per submission when judges emit batch-begin/batch-end
+  private currentBatchPerSubmission = new Map<number, number | null>();
 
   constructor(
     private prisma: PrismaService,
@@ -299,6 +301,18 @@ export class JudgeManagerService implements OnModuleInit {
       `DMOJ status ${data.status} mapped to verdict: ${verdict}`,
     );
 
+    // Normalize batchNumber to a number or null so frontend receives consistent values.
+    // If the judge didn't include a batchNumber, fall back to any tracked current batch.
+    let normalizedBatchNumber: number | null =
+      data.batchNumber !== undefined && data.batchNumber !== null
+        ? Number(data.batchNumber)
+        : null;
+
+    if (normalizedBatchNumber === null) {
+      const tracked = this.currentBatchPerSubmission.get(data.submissionId);
+      normalizedBatchNumber = tracked !== undefined ? tracked : null;
+    }
+
     // Truncate large text data to prevent database bloat
     const truncatedInput = this.truncateText(data.input);
     const truncatedOutput = this.truncateText(data.output);
@@ -322,12 +336,12 @@ export class JudgeManagerService implements OnModuleInit {
         input: truncatedInput,
         output: truncatedOutput,
         expected: truncatedExpected,
-        batchNumber: data.batchNumber,
+        batchNumber: normalizedBatchNumber,
       },
       create: {
         submissionId: data.submissionId,
         caseNumber: data.caseNumber,
-        batchNumber: data.batchNumber,
+        batchNumber: normalizedBatchNumber,
         verdict,
         time: data.time,
         memory: data.memory ? Math.round(data.memory) : null,
@@ -344,13 +358,58 @@ export class JudgeManagerService implements OnModuleInit {
     this.eventEmitter.emit('submission.test-case-update', {
       submissionId: data.submissionId,
       caseNumber: data.caseNumber,
-      batchNumber: data.batchNumber,
+      batchNumber: normalizedBatchNumber,
       verdict,
       time: data.time,
       memory: data.memory,
       points: data.points,
       totalPoints: data.totalPoints,
       feedback: data.feedback,
+      timestamp: new Date(),
+    });
+  }
+
+  /**
+   * Handle batch begin events reported by judges. Judges may send a numeric
+   * batchNumber; if not, we increment an internal counter per submission so
+   * subsequent test-case-status packets can be assigned to a batch.
+   */
+  @OnEvent('submission.batch-begin')
+  handleBatchBegin(data: {
+    judgeConnectionId: string;
+    submissionId: number;
+    batchNumber?: number;
+  }) {
+    const existing = this.currentBatchPerSubmission.get(data.submissionId) || 0;
+    const batchNum =
+      data.batchNumber !== undefined && data.batchNumber !== null
+        ? Number(data.batchNumber)
+        : existing + 1;
+    this.currentBatchPerSubmission.set(data.submissionId, batchNum);
+    this.logger.debug(
+      `Batch ${batchNum} begin for submission ${data.submissionId}`,
+    );
+
+    this.eventEmitter.emit('submission.batch-update', {
+      submissionId: data.submissionId,
+      batchNumber: batchNum,
+      type: 'begin',
+      timestamp: new Date(),
+    });
+  }
+
+  /**
+   * Handle batch end events. Clear the tracked batch for the submission.
+   */
+  @OnEvent('submission.batch-end')
+  handleBatchEnd(data: { judgeConnectionId: string; submissionId: number }) {
+    this.logger.debug(`Batch end for submission ${data.submissionId}`);
+    this.currentBatchPerSubmission.set(data.submissionId, null);
+
+    this.eventEmitter.emit('submission.batch-update', {
+      submissionId: data.submissionId,
+      batchNumber: null,
+      type: 'end',
       timestamp: new Date(),
     });
   }
