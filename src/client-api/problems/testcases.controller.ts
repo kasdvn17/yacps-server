@@ -277,6 +277,16 @@ export class TestcasesController {
               } else if (checker.type) {
                 ch['args']['type'] = checker.type;
               }
+
+              // If still missing type/lang, infer common defaults from file extension
+              // to match VNOI behavior: for C++ checkers default to testlib + CPP20.
+              const ext = (basename.split('.').pop() || '').toLowerCase();
+              if (!ch['args']['type'] && ext === 'cpp') {
+                ch['args']['type'] = 'testlib';
+              }
+              if (!ch['args']['lang'] && ext === 'cpp') {
+                ch['args']['lang'] = 'CPP20';
+              }
             }
 
             init['checker'] = ch;
