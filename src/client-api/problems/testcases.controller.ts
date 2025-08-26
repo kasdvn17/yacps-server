@@ -263,8 +263,20 @@ export class TestcasesController {
               const basename = parts[parts.length - 1] || pathStr;
               ch['args'] = ch['args'] || {};
               ch['args']['files'] = basename;
-              if (checker.lang) ch['args']['lang'] = checker.lang;
-              if (checker.type) ch['args']['type'] = checker.type;
+              // Prefer args.lang/type if present (FE sends under args), otherwise
+              // fallback to top-level checker.lang/checker.type for compatibility.
+              const args = (checker.args || {}) as Record<string, any>;
+              if (args && args.lang) {
+                ch['args']['lang'] = args.lang;
+              } else if (checker.lang) {
+                ch['args']['lang'] = checker.lang;
+              }
+
+              if (args && args.type) {
+                ch['args']['type'] = args.type;
+              } else if (checker.type) {
+                ch['args']['type'] = checker.type;
+              }
             }
 
             init['checker'] = ch;
@@ -283,6 +295,49 @@ export class TestcasesController {
               name: checker.name || 'custom',
               args: checker.args,
             } as any;
+          }
+        }
+
+        // If grader is interactive, emit VNOI-style `interactive` block.
+        // FE should send `grader` and checker.args; default feedback/unbuffered
+        // to true to match VNOI behavior unless FE specifies otherwise.
+        const graderChoice = body.grader || null;
+        if (graderChoice === 'interactive') {
+          // prefer checker.args if present
+          const chc = init['checker'] || checker || {};
+          const interactiveObj: Record<string, any> = {};
+          // If init.checker already has args.files etc (we set it above for bridged), use that
+          const chcArgs = (chc && (chc.args || {})) as Record<string, any>;
+          const payloadArgs = (checker && (checker.args || {})) as Record<
+            string,
+            any
+          >;
+
+          if (chcArgs && chcArgs.files) {
+            interactiveObj.files = chcArgs.files;
+            if (chcArgs.type) interactiveObj.type = chcArgs.type;
+            if (chcArgs.lang) interactiveObj.lang = chcArgs.lang;
+          } else if (payloadArgs && payloadArgs.files) {
+            interactiveObj.files = payloadArgs.files;
+            if (payloadArgs.type) interactiveObj.type = payloadArgs.type;
+            if (payloadArgs.lang) interactiveObj.lang = payloadArgs.lang;
+          }
+
+          // Feedback/unbuffered defaults — use provided body flags if present
+          interactiveObj.feedback = body.interactive?.feedback ?? true;
+
+          // VNOI emits 'unbuffered' separately at top-level in many examples; put it at top-level
+          if (
+            body.interactive &&
+            typeof body.interactive.unbuffered !== 'undefined'
+          ) {
+            init['unbuffered'] = body.interactive.unbuffered;
+          } else {
+            init['unbuffered'] = true;
+          }
+
+          if (Object.keys(interactiveObj).length) {
+            init['interactive'] = interactiveObj;
           }
         }
 
