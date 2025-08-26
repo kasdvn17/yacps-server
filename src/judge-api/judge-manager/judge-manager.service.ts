@@ -11,8 +11,12 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 @Injectable()
 export class JudgeManagerService implements OnModuleInit {
   private readonly logger = new Logger(JudgeManagerService.name);
-  // Track current batch per submission when judges emit batch-begin/batch-end
-  private currentBatchPerSubmission = new Map<number, number | null>();
+  // Track last assigned batch number and whether a batch is currently active
+  // so we can increment properly even after batch-end events.
+  private currentBatchPerSubmission = new Map<
+    number,
+    { last: number; active: boolean }
+  >();
 
   constructor(
     private prisma: PrismaService,
@@ -310,7 +314,8 @@ export class JudgeManagerService implements OnModuleInit {
 
     if (normalizedBatchNumber === null) {
       const tracked = this.currentBatchPerSubmission.get(data.submissionId);
-      normalizedBatchNumber = tracked !== undefined ? tracked : null;
+      // Only assign a batchNumber from tracked state if a batch is currently active.
+      normalizedBatchNumber = tracked && tracked.active ? tracked.last : null;
     }
 
     // Truncate large text data to prevent database bloat
@@ -380,12 +385,19 @@ export class JudgeManagerService implements OnModuleInit {
     submissionId: number;
     batchNumber?: number;
   }) {
-    const existing = this.currentBatchPerSubmission.get(data.submissionId) || 0;
+    const existingEntry = this.currentBatchPerSubmission.get(data.submissionId);
+    const existingLast = existingEntry ? existingEntry.last : 0;
     const batchNum =
       data.batchNumber !== undefined && data.batchNumber !== null
         ? Number(data.batchNumber)
-        : existing + 1;
-    this.currentBatchPerSubmission.set(data.submissionId, batchNum);
+        : existingLast + 1;
+
+    // Mark batch as active and record last assigned number
+    this.currentBatchPerSubmission.set(data.submissionId, {
+      last: batchNum,
+      active: true,
+    });
+
     this.logger.debug(
       `Batch ${batchNum} begin for submission ${data.submissionId}`,
     );
@@ -404,7 +416,15 @@ export class JudgeManagerService implements OnModuleInit {
   @OnEvent('submission.batch-end')
   handleBatchEnd(data: { judgeConnectionId: string; submissionId: number }) {
     this.logger.debug(`Batch end for submission ${data.submissionId}`);
-    this.currentBatchPerSubmission.set(data.submissionId, null);
+
+    // Preserve last assigned batch number but mark as inactive so future
+    // batch-begin without an explicit number will increment from last.
+    const existing = this.currentBatchPerSubmission.get(data.submissionId);
+    const last = existing ? existing.last : 0;
+    this.currentBatchPerSubmission.set(data.submissionId, {
+      last,
+      active: false,
+    });
 
     this.eventEmitter.emit('submission.batch-update', {
       submissionId: data.submissionId,
