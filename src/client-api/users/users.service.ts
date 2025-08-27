@@ -1,6 +1,6 @@
 import { PrismaService } from '@/prisma/prisma.service';
 import { Global, Injectable } from '@nestjs/common';
-import { User } from '@prisma/client';
+import { Prisma, User } from '@prisma/client';
 
 @Global()
 @Injectable()
@@ -57,5 +57,45 @@ export class UsersService {
       take: limit,
     });
     return users;
+  }
+
+  async countPointsAndSolvedProbs(
+    user: User,
+  ): Promise<{ solvedProblems: number; totalPoints: number }> {
+    const data: { solvedProblems: bigint; totalPoints: number }[] = await this
+      .prismaService.$queryRaw`
+      SELECT
+        SUM(p.points) AS "totalPoints",
+        COUNT(DISTINCT p.id) AS "solvedProblems"
+      FROM "Submission" s
+      JOIN "Problem" p ON s."problemId" = p.id
+      WHERE s."authorId" = ${user.id} AND s.verdict = 'AC';
+    `;
+    const x = data[0];
+    if (!x) return { solvedProblems: 0, totalPoints: 0 };
+    return {
+      solvedProblems: Number(x.solvedProblems),
+      totalPoints: x.totalPoints,
+    };
+  }
+
+  async countBatchPointsAndSolvedProbs(
+    userIds: string[],
+  ): Promise<{ solvedProblems: number; totalPoints: number; id: string }[]> {
+    const data: { solvedProblems: number; totalPoints: number; id: string }[] =
+      await this.prismaService.$queryRaw`
+      SELECT
+        SUM(p.points) AS "totalPoints",
+        COUNT(DISTINCT p.id) AS "solvedProblems",
+        s."authorId" as id
+      FROM "Submission" s
+      JOIN "Problem" p ON s."problemId" = p.id
+      WHERE s."authorId" IN (${Prisma.join(userIds)}) AND s.verdict = 'AC'
+      GROUP BY s."authorId";
+    `;
+    return data.map((v) => ({
+      ...v,
+      solvedProblems: Number(v.solvedProblems),
+    }));
   }
 }

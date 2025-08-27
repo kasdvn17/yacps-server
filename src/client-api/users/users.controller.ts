@@ -103,7 +103,7 @@ export class UsersController {
       });
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
@@ -151,7 +151,7 @@ export class UsersController {
       });
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
@@ -186,108 +186,17 @@ export class UsersController {
         throw new NotFoundException('USER_NOT_FOUND');
       }
 
-      // Get user submissions with problem and author details
-      const submissions = await this.prismaService.submission.findMany({
-        where: {
-          authorId: user.id,
-        },
-        include: {
-          problem: {
-            select: {
-              id: true,
-              slug: true,
-              name: true,
-              points: true,
-              category: {
-                select: {
-                  name: true,
-                },
-              },
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
-
-      // Calculate total points from submissions by taking the highest score per problem
-      // and count problemsSolved as unique problems with at least one AC verdict.
-      const maxPointsByProblem = new Map<string, number>();
-      const solvedProblems = new Set<string>();
-      submissions.forEach((submission) => {
-        const slug = submission.problem?.slug;
-        if (!slug) return;
-        const pts = submission.points || 0;
-        const current = maxPointsByProblem.get(slug) || 0;
-        if (pts > current) {
-          maxPointsByProblem.set(slug, pts);
-        }
-        // Consider a problem solved if any submission for that problem has verdict AC
-        if (submission.verdict === 'AC') {
-          solvedProblems.add(slug);
-        }
-      });
-
-      const totalPoints = Array.from(maxPointsByProblem.values()).reduce(
-        (sum, p) => sum + p,
-        0,
-      );
-      const problemsSolved = solvedProblems.size;
-
-      // // Calculate user rank by points (simplified - could be optimized)
-      // // Since we don't have a totalPoints field, we need to calculate it for all users
-      // const allUsers = await this.prismaService.user.findMany({
-      //   where: {
-      //     isDeleted: false,
-      //   },
-      //   include: {
-      //     submissions: {
-      //       select: {
-      //         points: true,
-      //       },
-      //     },
-      //   },
-      // });
-
-      // const usersWithPoints = allUsers.map((u) => ({
-      //   id: u.id,
-      //   totalPoints: u.submissions.reduce(
-      //     (sum, sub) => sum + (sub.points || 0),
-      //     0,
-      //   ),
-      // }));
-
-      // const usersWithMorePoints = usersWithPoints.filter(
-      //   (u) => u.totalPoints > totalPoints,
-      // );
-      // const userRank = usersWithMorePoints.length + 1;
-
-      // Transform submissions to match frontend interface
-      const transformedSubmissions = submissions.map((submission) => ({
-        problemSlug: submission.problem.slug,
-        problemName: submission.problem.name,
-        problemCategory: submission.problem.category?.name || 'Uncategorized',
-        status: submission.verdict || 'QU',
-        points: submission.points || 0,
-        language: submission.language,
-        timestamp: submission.createdAt.getTime(),
-      }));
-
       return {
-        totalPoints,
-        problemsSolved,
-        // rankByPoints: userRank,
-        submissions: transformedSubmissions,
-        bio: '', // User model doesn't have bio field
-        avatarURL: '', // User model doesn't have avatarURL field
+        ...(await this.usersService.countPointsAndSolvedProbs(user)),
+        bio: user.bio,
+        fullname: user.fullname,
       };
     } catch (err) {
       if (err instanceof NotFoundException) {
         throw err;
       }
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
@@ -314,7 +223,7 @@ export class UsersController {
         throw err;
       }
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
@@ -325,71 +234,25 @@ export class UsersController {
       const users = await this.usersService.findUsers({}, false, false, 1000);
       // Fetch all submissions for these users so we can compute aggregates
       const userIds = users.map((u) => u.id);
-      const submissions = await this.prismaService.submission.findMany({
-        where: {
-          authorId: { in: userIds },
-        },
-        select: {
-          authorId: true,
-          points: true,
-          verdict: true,
-          problem: {
-            select: {
-              slug: true,
-            },
-          },
-        },
-      });
+      const pointsAndSolvedProbs =
+        await this.usersService.countBatchPointsAndSolvedProbs(userIds);
 
-      // Map userId -> Map<problemSlug, maxPoints>
-      const maxPointsByUser = new Map<any, Map<string, number>>();
-      // Map userId -> Set<solvedProblemSlug>
-      const solvedByUser = new Map<any, Set<string>>();
-
-      submissions.forEach((sub) => {
-        const uid = sub.authorId;
-        const slug = sub.problem?.slug;
-        if (!slug) return;
-        const pts = sub.points || 0;
-
-        let perUser = maxPointsByUser.get(uid);
-        if (!perUser) {
-          perUser = new Map<string, number>();
-          maxPointsByUser.set(uid, perUser);
-        }
-        const current = perUser.get(slug) || 0;
-        if (pts > current) perUser.set(slug, pts);
-
-        if (sub.verdict === 'AC') {
-          let solved = solvedByUser.get(uid);
-          if (!solved) {
-            solved = new Set<string>();
-            solvedByUser.set(uid, solved);
-          }
-          solved.add(slug);
-        }
-      });
-
-      const sanitizedUsers = users.map((user) => {
-        const perUser = maxPointsByUser.get(user.id);
-        const totalPoints = perUser
-          ? Array.from(perUser.values()).reduce((s, p) => s + p, 0)
-          : 0;
-        const problemsSolved = solvedByUser.get(user.id)?.size || 0;
-
-        return {
-          username: user.username,
-          rating: user.rating,
-          totalPoints,
-          problemsSolved,
-          isDeleted: user.isDeleted,
-        };
-      });
-
-      return sanitizedUsers;
+      return pointsAndSolvedProbs
+        .map((v) => {
+          const user = users.find((u) => u.id === v.id);
+          if (!user) return null;
+          return {
+            username: user.username,
+            rating: user.rating,
+            totalPoints: v.totalPoints,
+            problemsSolved: v.solvedProblems,
+            ...(user.isDeleted && { isDeleted: user.isDeleted }),
+          };
+        })
+        .filter((v) => !!v);
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 }

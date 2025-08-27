@@ -18,6 +18,7 @@ model User {
   username       String  @unique
   password       String
   fullname       String?
+  bio            String?
   // DOB      DateTime
   defaultRuntime String  @default("CPP17")
   perms          BigInt  @default(0)

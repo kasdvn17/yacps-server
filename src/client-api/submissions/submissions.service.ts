@@ -95,7 +95,7 @@ export class SubmissionsService {
 
       return submission;
     } catch (err) {
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
@@ -210,7 +210,7 @@ export class SubmissionsService {
 
       return submission;
     } catch (err) {
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
@@ -326,7 +326,7 @@ export class SubmissionsService {
 
       return submission;
     } catch (err) {
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
