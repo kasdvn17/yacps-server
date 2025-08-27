@@ -167,7 +167,7 @@ export class ProblemsController {
             forcePathStyle: false,
           });
 
-          const slugToCheck = (updated as any).slug || problem.slug;
+          const slugToCheck = updated.slug || problem.slug;
           const prefix = `tests/${slugToCheck}/`;
           const listRes = await s3.send(
             new ListObjectsV2Command({
@@ -181,11 +181,10 @@ export class ProblemsController {
             (listRes.KeyCount || listRes.Contents?.length)
           );
 
-          if (hasTestData !== !!(updated as any).hasTestData) {
+          if (hasTestData !== !!updated.hasTestData) {
             await this.prismaService.problem.update({
               where: { id: problem.id },
-              // cast to any because prisma client/types not regenerated in this patch
-              data: { hasTestData } as any,
+              data: { hasTestData },
             });
           }
         }
