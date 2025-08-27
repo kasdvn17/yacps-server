@@ -121,16 +121,30 @@ export class UsersService {
   }
 
   async getSolvedAndAttemptedProblems(userId: string) {
-    return await this.prismaService.$queryRaw`
+    const probs: {
+      slug: string;
+      name: string;
+      points: number;
+      solved: boolean;
+    }[] = await this.prismaService.$queryRaw`
       SELECT
         p.slug,
         p.name,
+        p."categoryId",
         MAX(s.points) AS points,
         bool_or(s.verdict = 'AC') AS solved
       FROM "Submission" s
       LEFT JOIN "Problem" p ON s."problemId" = p.id
       WHERE s."authorId" = ${userId}
-      GROUP BY p.slug, p.name
+      GROUP BY p.slug, p.name, p."categoryId"
     `;
+    const totalPoints = probs.reduce(
+      (acc, cur: { points: number }) => acc + Number(cur.points),
+      0,
+    );
+    return {
+      totalPoints,
+      data: probs,
+    };
   }
 }
