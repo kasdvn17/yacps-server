@@ -105,4 +105,8 @@ export class UpdateProblemDTO {
   @IsString({ each: true })
   @IsOptional()
   allowedLanguages?: string[];
+
+  @IsString()
+  @IsOptional()
+  pdfUuid?: string;
 }

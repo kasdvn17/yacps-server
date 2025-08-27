@@ -132,6 +132,7 @@ export class ProblemsController {
           types: data.types
             ? { set: [], connect: data.types.map((id) => ({ id })) }
             : undefined,
+          pdfUuid: data.pdfUuid ?? undefined,
           testEnvironments: data.allowedLanguages
             ? {
                 upsert: {
