@@ -29,6 +29,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import * as multer from 'multer';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { UsersService } from '../users/users.service';
 // S3 upload handled in service
 
 @Controller()
@@ -41,6 +42,7 @@ export class SubmissionsController {
     private queueService: SubmissionQueueService,
     private eventEmitter: EventEmitter2,
     private problemsService: ProblemsService,
+    private usersService: UsersService,
     private submissionsService: SubmissionsService,
     private permissionsService: PermissionsService,
   ) {}
@@ -462,6 +464,23 @@ export class SubmissionsController {
       success: true,
       data: submission,
     };
+  }
+
+  @Get('heatmap/:username')
+  @Public()
+  async getUserSubmissionsHeatmap(@Param('username') username: string) {
+    const user = await this.usersService.findUser({ username }, false, false);
+    if (!user) throw new NotFoundException('USER_NOT_FOUND');
+
+    const submissions = (
+      await this.prisma.submission.findMany({
+        where: { authorId: user.id },
+        select: { createdAt: true },
+      })
+    ).map((v) => ({
+      timestamp: v.createdAt.getTime(),
+    }));
+    return submissions;
   }
 
   /**
