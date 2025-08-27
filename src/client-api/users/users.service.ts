@@ -122,13 +122,14 @@ export class UsersService {
 
   async getSolvedAndAttemptedProblems(userId: string) {
     return await this.prismaService.$queryRaw`
-    SELECT
-      p.slug,
-      count(s.*) > 0 AS attempted,
-      bool_or(s.verdict = 'AC') AS solved
-    FROM "Problem" p
-    LEFT JOIN "Submission" s ON s."problemId" = p.id AND s."authorId" = ${userId}
-    GROUP BY p.slug;
+      SELECT
+        p.slug,
+        MAX(s.points) AS points,
+        bool_or(s.verdict = 'AC') AS solved
+      FROM "Submission" s
+      LEFT JOIN "Problem" p ON s."problemId" = p.id
+      WHERE s."authorId" = ${userId}
+      GROUP BY p.slug
     `;
   }
 }
