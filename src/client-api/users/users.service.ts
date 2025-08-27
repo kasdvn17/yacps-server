@@ -124,12 +124,13 @@ export class UsersService {
     return await this.prismaService.$queryRaw`
       SELECT
         p.slug,
+        p.name,
         MAX(s.points) AS points,
         bool_or(s.verdict = 'AC') AS solved
       FROM "Submission" s
       LEFT JOIN "Problem" p ON s."problemId" = p.id
       WHERE s."authorId" = ${userId}
-      GROUP BY p.slug
+      GROUP BY p.slug, p.name
     `;
   }
 }
