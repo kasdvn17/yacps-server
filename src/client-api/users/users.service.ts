@@ -62,15 +62,25 @@ export class UsersService {
   async countPointsAndSolvedProbs(
     user: User,
   ): Promise<{ solvedProblems: number; totalPoints: number }> {
-    const data: { solvedProblems: bigint; totalPoints: number }[] = await this
-      .prismaService.$queryRaw`
+    const data: { solvedProblems: bigint; totalPoints: number; id: string }[] =
+      await this.prismaService.$queryRaw`
       SELECT
-        SUM(p.points) AS "totalPoints",
-        COUNT(DISTINCT p.id) AS "solvedProblems"
-      FROM "Submission" s
-      JOIN "Problem" p ON s."problemId" = p.id
-      WHERE s."authorId" = ${user.id} AND s.verdict = 'AC';
-    `;
+        SUM(max_points) AS "totalPoints",
+        COUNT(CASE WHEN has_ac THEN 1 END) AS "solvedProblems",
+        t."authorId" as id
+      FROM (
+        SELECT
+          s."authorId",
+          p.id AS "problemId",
+          MAX(s.points) AS max_points,
+          BOOL_OR(s.verdict = 'AC') AS has_ac
+        FROM "Submission" s
+        JOIN "Problem" p ON s."problemId" = p.id
+        WHERE s."authorId" = ${user.id}
+        GROUP BY s."authorId", p.id
+      ) t
+      GROUP BY t."authorId";
+      `;
     const x = data[0];
     if (!x) return { solvedProblems: 0, totalPoints: 0 };
     return {
@@ -82,20 +92,43 @@ export class UsersService {
   async countBatchPointsAndSolvedProbs(
     userIds: string[],
   ): Promise<{ solvedProblems: number; totalPoints: number; id: string }[]> {
-    const data: { solvedProblems: number; totalPoints: number; id: string }[] =
+    const data: { solvedProblems: bigint; totalPoints: number; id: string }[] =
       await this.prismaService.$queryRaw`
       SELECT
-        SUM(p.points) AS "totalPoints",
-        COUNT(DISTINCT p.id) AS "solvedProblems",
-        s."authorId" as id
-      FROM "Submission" s
-      JOIN "Problem" p ON s."problemId" = p.id
-      WHERE s."authorId" IN (${Prisma.join(userIds)}) AND s.verdict = 'AC'
-      GROUP BY s."authorId";
+        SUM(max_points) AS "totalPoints",
+        COUNT(CASE WHEN has_ac THEN 1 END) AS "solvedProblems",
+        t."authorId" as id
+      FROM (
+        SELECT
+          s."authorId",
+          p.id AS "problemId",
+          MAX(s.points) AS max_points,
+          BOOL_OR(s.verdict = 'AC') AS has_ac
+        FROM "Submission" s
+        JOIN "Problem" p ON s."problemId" = p.id
+        WHERE s."authorId" IN (${Prisma.join(userIds)})
+        GROUP BY s."authorId", p.id
+      ) t
+      GROUP BY t."authorId";
+      `;
+    return data
+      .filter((v) => !!v)
+      .map((v) => ({
+        solvedProblems: Number(v.solvedProblems),
+        totalPoints: v.totalPoints,
+        id: v.id,
+      }));
+  }
+
+  async getSolvedAndAttemptedProblems(userId: string) {
+    return await this.prismaService.$queryRaw`
+    SELECT
+      p.slug,
+      count(s.*) > 0 AS attempted,
+      bool_or(s.verdict = 'AC') AS solved
+    FROM "Problem" p
+    LEFT JOIN "Submission" s ON s."problemId" = p.id AND s."authorId" = ${userId}
+    GROUP BY p.slug;
     `;
-    return data.map((v) => ({
-      ...v,
-      solvedProblems: Number(v.solvedProblems),
-    }));
   }
 }

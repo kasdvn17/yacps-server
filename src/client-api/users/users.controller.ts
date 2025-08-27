@@ -234,23 +234,47 @@ export class UsersController {
       const users = await this.usersService.findUsers({}, false, false, 1000);
       // Fetch all submissions for these users so we can compute aggregates
       const userIds = users.map((u) => u.id);
-      const pointsAndSolvedProbs =
+      const listPointsAndSolvedProbs =
         await this.usersService.countBatchPointsAndSolvedProbs(userIds);
 
-      return pointsAndSolvedProbs
-        .map((v) => {
-          const user = users.find((u) => u.id === v.id);
-          if (!user) return null;
-          return {
-            username: user.username,
-            rating: user.rating,
-            totalPoints: v.totalPoints,
-            problemsSolved: v.solvedProblems,
-            ...(user.isDeleted && { isDeleted: user.isDeleted }),
-          };
-        })
-        .filter((v) => !!v);
+      return users.map((v) => {
+        const pointsAndSolvedProbs = listPointsAndSolvedProbs.find(
+          (x) => x.id === v.id,
+        );
+        return {
+          username: v.username,
+          rating: v.rating,
+          totalPoints: pointsAndSolvedProbs
+            ? pointsAndSolvedProbs.totalPoints
+            : 0,
+          problemsSolved: pointsAndSolvedProbs
+            ? pointsAndSolvedProbs.solvedProblems
+            : 0,
+          ...(v.isDeleted && { isDeleted: v.isDeleted }),
+        };
+      });
     } catch (err) {
+      this.logger.error(err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
+    }
+  }
+
+  @Get('/sap_problems/:username')
+  @Public()
+  async getSAPProblemsOfUsers(@Param('username') username: string) {
+    try {
+      // Find the user by username
+      const user = await this.usersService.findUser({ username }, false, false);
+
+      if (!user) {
+        throw new NotFoundException('USER_NOT_FOUND');
+      }
+
+      return await this.usersService.getSolvedAndAttemptedProblems(user.id);
+    } catch (err) {
+      if (err instanceof NotFoundException) {
+        throw err;
+      }
       this.logger.error(err);
       throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
