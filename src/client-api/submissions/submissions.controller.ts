@@ -347,6 +347,9 @@ export class SubmissionsController {
           expected: canSeeTestcaseData
             ? testCase.expected || problemTestCase?.expected
             : undefined,
+          feedback: canSeeTestcaseData
+            ? testCase.feedback || problemTestCase?.feedback
+            : undefined,
         };
       }),
     };
