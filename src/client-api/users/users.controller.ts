@@ -243,7 +243,7 @@ export class UsersController {
         );
         return {
           username: v.username,
-          fullname: v.fullname
+          fullname: v.fullname,
           rating: v.rating,
           totalPoints: pointsAndSolvedProbs
             ? pointsAndSolvedProbs.totalPoints
