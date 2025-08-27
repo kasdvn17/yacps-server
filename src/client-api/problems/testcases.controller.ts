@@ -361,22 +361,35 @@ export class TestcasesController {
         // output-only flag (LQDOJ uses data.output_only)
         if (body.output_only || body.outputOnly) init.output_only = true;
 
-        // file IO mapping: support body.ioMethod='file' and explicit ioInputFile/ioOutputFile
-        const ioMethodBody =
-          body.ioMethod || body.grader_args?.io_method || null;
-        if (ioMethodBody === 'file') {
-          const inputFile =
-            body.ioInputFile ||
-            body.grader_args?.io_input_file ||
-            body.file_io?.input ||
-            '';
-          const outputFile =
-            body.ioOutputFile ||
-            body.grader_args?.io_output_file ||
-            body.file_io?.output ||
-            '';
-          if (inputFile && outputFile)
-            init.file_io = { input: inputFile, output: outputFile } as any;
+        // file IO mapping: accept body.file_io or explicit ioInputFile/ioOutputFile
+        // We allow one-side file IO (input or output) to be specified; if both
+        // are empty, we leave stdin/stdout behaviour (no file_io entry).
+        const inputFileBody =
+          body.ioInputFile ||
+          body.grader_args?.io_input_file ||
+          body.file_io?.input ||
+          null;
+        const outputFileBody =
+          body.ioOutputFile ||
+          body.grader_args?.io_output_file ||
+          body.file_io?.output ||
+          null;
+
+        // If at least one side is specified (non-empty string), include file_io
+        // and persist the default file IO names to the Problem row so other
+        // parts of the system can default to those filenames.
+        let providedFileIo: { input?: string; output?: string } | null = null;
+        if (
+          (typeof inputFileBody === 'string' && inputFileBody !== '') ||
+          (typeof outputFileBody === 'string' && outputFileBody !== '')
+        ) {
+          const fileIo: any = {};
+          if (typeof inputFileBody === 'string' && inputFileBody !== '')
+            fileIo.input = inputFileBody;
+          if (typeof outputFileBody === 'string' && outputFileBody !== '')
+            fileIo.output = outputFileBody;
+          init.file_io = fileIo;
+          providedFileIo = fileIo;
         }
 
         // signature grader: accept body.signature or body.signature_grader
@@ -443,9 +456,21 @@ export class TestcasesController {
                 hasInit: true,
               },
             });
+
+            // Persist hasTestData and optionally update Problem.input/output
+            const updateData: any = { hasTestData: true };
+            if (providedFileIo) {
+              if (providedFileIo.input) {
+                updateData.input = providedFileIo.input;
+              }
+              if (providedFileIo.output) {
+                updateData.output = providedFileIo.output;
+              }
+            }
+
             await this.prisma.problem.update({
               where: { id: problem.id },
-              data: { hasTestData: true } as any,
+              data: updateData,
             });
           } catch (e) {
             console.error('Failed to record ProblemArchive for init.yml', e);
