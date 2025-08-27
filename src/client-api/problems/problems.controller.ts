@@ -104,13 +104,8 @@ export class ProblemsController {
         user?.perms || 0n,
         UserPermissions.MODIFY_ALL_PROBLEMS,
       ) ||
-      this.permissionsService.hasPerms(
-        user?.perms || 0n,
-        UserPermissions.MODIFY_PERMITTED_PROBLEMS,
-      ) ||
       problem.authors.some((a) => a.id === user.id) ||
-      problem.curators.some((c) => c.id === user.id) ||
-      problem.testers.some((t) => t.id === user.id);
+      problem.curators.some((c) => c.id === user.id);
 
     if (!canModify) throw new ForbiddenException('INSUFFICIENT_PERMISSIONS');
 
@@ -196,7 +191,7 @@ export class ProblemsController {
       return { success: true, data: updated };
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
@@ -228,7 +223,37 @@ export class ProblemsController {
       return { success: true };
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
+    }
+  }
+
+  /**
+   * Lock/unlock a problem
+   * @param problemSlug Slug of the problem to delete
+   * @param user Logged in user
+   */
+  @Post('/:problemSlug/lock')
+  @UseGuards(AuthGuard)
+  @Perms([UserPermissions.LOCK_PROBLEM])
+  async lockProblem(
+    @Param('problemSlug') problemSlug: string,
+    @LoggedInUser() user: User,
+  ) {
+    const problem = await this.problemsService.findViewableProblemWithSlug(
+      problemSlug,
+      user,
+    );
+    if (!problem) throw new NotFoundException('PROBLEM_NOT_FOUND');
+
+    try {
+      await this.prismaService.problem.update({
+        where: { id: problem.id },
+        data: { isLocked: !problem.isLocked },
+      });
+      return { isLocked: !problem.isLocked };
+    } catch (err) {
+      this.logger.error(err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
@@ -366,7 +391,7 @@ export class ProblemsController {
       return problem;
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 

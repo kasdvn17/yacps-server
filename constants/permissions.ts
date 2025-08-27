@@ -43,14 +43,14 @@ export const UserPermissions = {
   EDIT_SUBMISSION: 1n << 20n,
   SKIP_SUBMISSION: 1n << 21n,
   UNLIMITED_SUBMISSIONS: 1n << 22n,
-  CHANGE_SUBMISSION_STATUS: 1n << 23n, // active, aborted, locked
+  LOCK_SUBMISSION: 1n << 23n,
 
   // Problems
   VIEW_ALL_PROBLEMS: 1n << 24n,
   CREATE_NEW_PROBLEM: 1n << 25n,
   MODIFY_ALL_PROBLEMS: 1n << 26n,
   MODIFY_PERMITTED_PROBLEMS: 1n << 27n,
-  CHANGE_PROBLEM_STATUS: 1n << 28n, // locked, hidden, active
+  LOCK_PROBLEM: 1n << 28n,
   DELETE_PROBLEM: 1n << 29n,
   UPDATE_SOLUTIONS: 1n << 30n,
   CLONE_PROBLEM: 1n << 31n,

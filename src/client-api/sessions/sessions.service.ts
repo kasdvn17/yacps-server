@@ -56,7 +56,7 @@ export class SessionsService {
       return session;
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
@@ -75,7 +75,7 @@ export class SessionsService {
         throw new NotFoundException('SESSION_NOT_FOUND');
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
@@ -102,7 +102,7 @@ export class SessionsService {
       return deleteResult.count;
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
@@ -123,7 +123,7 @@ export class SessionsService {
       });
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
@@ -141,7 +141,7 @@ export class SessionsService {
       });
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
@@ -157,7 +157,7 @@ export class SessionsService {
       });
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
@@ -181,7 +181,7 @@ export class SessionsService {
       });
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
@@ -203,7 +203,7 @@ export class SessionsService {
       return sessions;
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 }
