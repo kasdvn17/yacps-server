@@ -72,7 +72,7 @@ export class SubmissionQueueService {
       })
     | null
   > {
-    const nextSubmission = await this.prisma.submissionQueue.findFirst({
+    const nextSubmission = (await this.prisma.submissionQueue.findFirst({
       where: {
         attempts: {
           lt: 3, // max attempts
@@ -94,7 +94,14 @@ export class SubmissionQueueService {
           },
         },
       },
-    });
+    })) as SubmissionQueue & {
+      submission: Submission & {
+        problem: Partial<
+          Problem & { testEnvironments: Partial<ProblemTestEnvironment> }
+        >;
+        author: Partial<User>;
+      };
+    };
 
     return nextSubmission;
   }
