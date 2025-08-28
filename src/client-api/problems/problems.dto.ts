@@ -56,7 +56,7 @@ export class CreateProblemDTO {
 
   @IsString()
   @IsOptional()
-  pdfUuid?: string;
+  pdf?: string;
 
   @IsNumber()
   @IsOptional()
@@ -113,7 +113,7 @@ export class UpdateProblemDTO {
 
   @IsString()
   @IsOptional()
-  pdfUuid?: string;
+  pdf?: string;
 
   @IsBoolean()
   @IsOptional()
