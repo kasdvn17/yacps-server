@@ -313,6 +313,8 @@ export class ProblemsController {
       points: problem.points,
       solution: problem.solution,
 
+      short_circuit: problem.short_circuit,
+
       problemSource: problem.problemSource,
       author: problem.authors.map((v) => v.username),
       curator: problem.curators.map((v) => v.username),
