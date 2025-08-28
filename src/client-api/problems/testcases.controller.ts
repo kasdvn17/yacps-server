@@ -15,11 +15,13 @@ import JSZip from 'jszip';
 import { PrismaService } from '@/prisma/prisma.service';
 import { UserPermissions } from 'constants/permissions';
 import { PermissionsService } from '../auth/permissions.service';
+import { ProblemsService } from './problems.service';
 
 @Controller()
 export class TestcasesController {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly problemsService: ProblemsService,
     private readonly permissionsService: PermissionsService,
   ) {}
 
@@ -30,10 +32,11 @@ export class TestcasesController {
     @Body() body: any,
     @LoggedInUser() user: User,
   ) {
-    const problem = await this.prisma.problem.findUnique({
-      where: { slug },
-      include: { authors: true, curators: true, testers: true },
-    });
+    const problem =
+      await this.problemsService.findViewableProblemWithSlugIncludeMods(
+        slug,
+        user,
+      );
     if (!problem) throw new InternalServerErrorException('PROBLEM_NOT_FOUND');
     const canEditTestCases = this.permissionsService.hasPerms(
       user?.perms || 0n,
@@ -41,8 +44,7 @@ export class TestcasesController {
     );
     const isAuthor = problem.authors.some((a) => a.id === user.id);
     const isCurator = problem.curators.some((c) => c.id === user.id);
-    const isTester = problem.testers.some((t) => t.id === user.id);
-    if (!isAuthor && !isCurator && !isTester && !canEditTestCases)
+    if (!isAuthor && !isCurator && !canEditTestCases)
       throw new ForbiddenException('INSUFFICIENT_PERMISSIONS');
 
     // Accept URL-based archive uploads

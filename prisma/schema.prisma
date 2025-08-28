@@ -124,8 +124,9 @@ model Contest {
   curators User[] @relation("CuratorToContest")
   testers  User[] @relation("TesterToContest")
 
-  participants Contestant[]
-  problems     Problem[]
+  participants    Contestant[]
+  problems        Problem[]
+  primaryProblems PrimaryContestToProblem[]
 }
 
 enum ContestStyle {
@@ -248,8 +249,12 @@ model Problem {
   // Test case visibility controls
   testcaseDataVisibility TestcaseDataVisibility @default(AUTHOR_ONLY)
 
+  // Contest
+  primaryContest PrimaryContestToProblem?
+
   // Whether this problem currently has test data uploaded to object storage
-  hasTestData Boolean @default(false)
+  hasTestData   Boolean @default(false)
+  short_circuit Boolean @default(false)
 
   isDeleted Boolean @default(false)
   isPublic  Boolean @default(true)
@@ -304,6 +309,16 @@ model ProblemLanguageTestEnvironment {
   memoryLimit Int @default(256) // in MB
 
   @@id([problemId, lang])
+}
+
+model PrimaryContestToProblem {
+  contest   Contest @relation(fields: [contestId], references: [id])
+  contestId Int
+  problem   Problem @relation(fields: [problemId], references: [id])
+  problemId Int     @id
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum UserStatus {

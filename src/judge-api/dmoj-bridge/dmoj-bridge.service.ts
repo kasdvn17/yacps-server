@@ -15,7 +15,7 @@ interface DMOJPacket {
   data: any;
 }
 
-interface DMOJSubmissionData {
+export interface DMOJSubmissionData {
   id: number;
   problem: string;
   language: string;
@@ -23,6 +23,7 @@ interface DMOJSubmissionData {
   time_limit: number;
   memory_limit: number;
   meta?: Record<string, unknown>;
+  short_circuit?: boolean;
 }
 
 interface JudgeCapabilities {
@@ -384,7 +385,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
         source: submission.source,
         'time-limit': submission.time_limit,
         'memory-limit': submission.memory_limit,
-        'short-circuit': false,
+        'short-circuit': submission.short_circuit || false,
         // Forward meta through (may include 'file-only' and other hints)
         meta: submission.meta || {},
       };
