@@ -36,6 +36,7 @@ export class TestcasesController {
       await this.problemsService.findViewableProblemWithSlugIncludeMods(
         slug,
         user,
+        false,
       );
     if (!problem) throw new InternalServerErrorException('PROBLEM_NOT_FOUND');
     const canEditTestCases = this.permissionsService.hasPerms(

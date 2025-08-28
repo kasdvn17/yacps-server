@@ -92,6 +92,7 @@ export class ProblemsController {
     const problem = await this.problemsService.findViewableProblemWithSlug(
       problemSlug,
       user,
+      false,
     );
 
     if (!problem) throw new NotFoundException('PROBLEM_NOT_FOUND');
@@ -211,6 +212,7 @@ export class ProblemsController {
     const problem = await this.problemsService.findViewableProblemWithSlug(
       problemSlug,
       user,
+      false,
     );
     if (!problem) throw new NotFoundException('PROBLEM_NOT_FOUND');
 
@@ -243,6 +245,7 @@ export class ProblemsController {
     const problem = await this.problemsService.findViewableProblemWithSlug(
       problemSlug,
       user,
+      false,
     );
     if (!problem) throw new NotFoundException('PROBLEM_NOT_FOUND');
 
@@ -417,6 +420,7 @@ export class ProblemsController {
     const problem = await this.problemsService.findViewableProblemWithSlug(
       problemSlug,
       user,
+      false,
     );
 
     if (!problem) {
@@ -450,7 +454,7 @@ export class ProblemsController {
 
   /**
    * Check if user can edit problem testcases
-   * Based on DMOJ's permission model: authors, curators, testers, or EDIT_PROBLEM_TESTS permission
+   * Based on DMOJ's permission model: authors, curators, or EDIT_PROBLEM_TESTS permission
    * @param problem The problem object containing authors, curators, and testers
    * @param user The user object to check permissions for
    * @returns The boolean indicating if the user can edit the problem's test cases
@@ -459,7 +463,6 @@ export class ProblemsController {
     problem: {
       authors: { id: string }[];
       curators: { id: string }[];
-      testers: { id: string }[];
     },
     user: User,
   ): boolean {
@@ -477,7 +480,6 @@ export class ProblemsController {
     // Check if user is author, curator, or tester
     if (problem.authors.some((author) => author.id === user.id)) return true;
     if (problem.curators.some((curator) => curator.id === user.id)) return true;
-    if (problem.testers.some((tester) => tester.id === user.id)) return true;
 
     return false;
   }
