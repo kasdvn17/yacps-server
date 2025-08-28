@@ -40,6 +40,10 @@ export class CreateProblemDTO {
   @IsNumber()
   memoryLimit: number;
 
+  @IsBoolean()
+  @IsOptional()
+  short_circuit?: boolean;
+
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
