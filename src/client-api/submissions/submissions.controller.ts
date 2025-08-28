@@ -17,7 +17,6 @@ import { AuthGuard } from '../auth/auth.guard';
 import { PrismaService } from '@/prisma/prisma.service';
 import { SubmissionQueueService } from '@/judge-api/submission-queue/submission-queue.service';
 import { CreateSubmissionDTO, SubmissionQueryDTO } from './dto/submission.dto';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { LoggedInUser } from '../users/users.decorator';
 import { SubmissionVerdict, User } from '@prisma/client';
 import { Public } from '../auth/auth.decorator';
@@ -40,7 +39,6 @@ export class SubmissionsController {
   constructor(
     private prisma: PrismaService,
     private queueService: SubmissionQueueService,
-    private eventEmitter: EventEmitter2,
     private problemsService: ProblemsService,
     private usersService: UsersService,
     private submissionsService: SubmissionsService,
@@ -70,6 +68,7 @@ export class SubmissionsController {
     const problem = await this.problemsService.findViewableProblemWithSlug(
       body.problemSlug,
       user,
+      false,
     );
     if (!problem) throw new NotFoundException('PROBLEM_NOT_FOUND');
 
@@ -129,6 +128,7 @@ export class SubmissionsController {
     const problem = await this.problemsService.findViewableProblemWithSlug(
       body.problemSlug,
       user,
+      false,
     );
 
     if (!problem) {

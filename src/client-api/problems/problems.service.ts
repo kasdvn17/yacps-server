@@ -22,12 +22,15 @@ export class ProblemsService {
    * @param user The user querying the problems.
    * @returns The list of viewable problems from the user
    */
-  async findViewableProblems(user?: User) {
+  async findViewableProblems(
+    user?: User,
+    isDeleted: boolean | undefined = undefined,
+  ) {
     const userId = user?.id;
 
     return await this.prismaService.problem.findMany({
       where: this.hasViewAllProbsPerms(user)
-        ? {}
+        ? { isDeleted }
         : userId
           ? {
               OR: [
@@ -36,6 +39,7 @@ export class ProblemsService {
                 { curators: { some: { id: userId } } },
                 { testers: { some: { id: userId } } },
               ],
+              isDeleted,
             }
           : { isPublic: true, isDeleted: false },
       include: {
@@ -62,11 +66,15 @@ export class ProblemsService {
    * @param user The user querying the problem.
    * @returns The viewable problem with the given slug.
    */
-  async findViewableProblemWithSlug(slug: string, user?: User) {
+  async findViewableProblemWithSlug(
+    slug: string,
+    user?: User,
+    isDeleted: boolean | undefined = undefined,
+  ) {
     const userId = user?.id;
     return await this.prismaService.problem.findFirst({
       where: this.hasViewAllProbsPerms(user)
-        ? { slug }
+        ? { slug, isDeleted }
         : userId
           ? {
               OR: [
@@ -76,6 +84,7 @@ export class ProblemsService {
                 { testers: { some: { id: userId } } },
               ],
               slug,
+              isDeleted,
             }
           : { isPublic: true, isDeleted: false, slug },
       include: {
@@ -115,11 +124,15 @@ export class ProblemsService {
     });
   }
 
-  async findViewableProblemWithSlugIncludeMods(slug: string, user?: User) {
+  async findViewableProblemWithSlugIncludeMods(
+    slug: string,
+    user?: User,
+    isDeleted: boolean | undefined = undefined,
+  ) {
     const userId = user?.id;
     return await this.prismaService.problem.findFirst({
       where: this.hasViewAllProbsPerms(user)
-        ? { slug }
+        ? { slug, isDeleted }
         : userId
           ? {
               OR: [
@@ -129,6 +142,7 @@ export class ProblemsService {
                 { testers: { some: { id: userId } } },
               ],
               slug,
+              isDeleted,
             }
           : { isPublic: true, isDeleted: false, slug },
       include: {
@@ -173,10 +187,11 @@ export class ProblemsService {
    * @param slug The slug of the problem to check.
    * @returns The boolean indicating the existence.
    */
-  async exists(slug: string) {
+  async exists(slug: string, isDeleted: boolean | undefined = undefined) {
     const prob = await this.prismaService.problem.findUnique({
       where: {
         slug,
+        isDeleted,
       },
     });
     return !!prob;
@@ -335,14 +350,12 @@ export class ProblemsService {
    */
   async hasACProb(user?: User, problemId?: number): Promise<boolean> {
     if (!user || !problemId) return false;
-    return await this.prismaService.submission
-      .count({
-        where: {
-          authorId: user.id,
-          problemId,
-          verdict: 'AC',
-        },
-      })
-      .then((count) => count > 0);
+    return !!(await this.prismaService.submission.findFirst({
+      where: {
+        authorId: user.id,
+        problemId,
+        verdict: 'AC',
+      },
+    }));
   }
 }
