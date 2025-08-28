@@ -1,5 +1,6 @@
 import {
   IsArray,
+  IsBoolean,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -109,4 +110,8 @@ export class UpdateProblemDTO {
   @IsString()
   @IsOptional()
   pdfUuid?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  short_circuit?: boolean;
 }

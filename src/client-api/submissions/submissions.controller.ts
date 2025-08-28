@@ -145,13 +145,15 @@ export class SubmissionsController {
       throw new ForbiddenException('PROBLEM_NOT_VIEWABLE');
     if (problem.isLocked) throw new ForbiddenException('PROBLEM_LOCKED');
 
+    const isPretest = false;
+
     const submission = await this.submissionsService.createSubmission(
       user,
       problem,
       body.code,
       body.language,
       body.contestantId,
-      body.isPretest,
+      isPretest,
     );
 
     return {

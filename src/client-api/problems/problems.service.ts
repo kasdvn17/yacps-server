@@ -115,6 +115,37 @@ export class ProblemsService {
     });
   }
 
+  async findViewableProblemWithSlugIncludeMods(slug: string, user?: User) {
+    const userId = user?.id;
+    return await this.prismaService.problem.findFirst({
+      where: this.hasViewAllProbsPerms(user)
+        ? { slug }
+        : userId
+          ? {
+              OR: [
+                { isPublic: true, isDeleted: false },
+                { authors: { some: { id: userId } } },
+                { curators: { some: { id: userId } } },
+                { testers: { some: { id: userId } } },
+              ],
+              slug,
+            }
+          : { isPublic: true, isDeleted: false, slug },
+      include: {
+        authors: {
+          select: {
+            id: true,
+          },
+        },
+        curators: {
+          select: {
+            id: true,
+          },
+        },
+      },
+    });
+  }
+
   /**
    * Get a problem by ID
    * @param id The ID of the problem to find.

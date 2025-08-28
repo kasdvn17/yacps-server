@@ -3,9 +3,12 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { DMOJBridgeService } from '../dmoj-bridge/dmoj-bridge.service';
 import {
   Judge,
+  Problem,
+  ProblemTestEnvironment,
   Submission,
   SubmissionQueue,
   SubmissionVerdict,
+  User,
 } from '@prisma/client';
 
 @Injectable()
@@ -60,7 +63,12 @@ export class SubmissionQueueService {
 
   async getNextSubmission(): Promise<
     | (SubmissionQueue & {
-        submission: Submission & { problem: any; author: any };
+        submission: Submission & {
+          problem: Partial<
+            Problem & { testEnvironments: Partial<ProblemTestEnvironment> }
+          >;
+          author: Partial<User>;
+        };
       })
     | null
   > {

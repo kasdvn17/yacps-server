@@ -1,10 +1,4 @@
-import {
-  IsString,
-  IsInt,
-  IsOptional,
-  IsBoolean,
-  Length,
-} from 'class-validator';
+import { IsString, IsInt, IsOptional, Length } from 'class-validator';
 
 export class CreateSubmissionDTO {
   @IsString()
@@ -22,9 +16,10 @@ export class CreateSubmissionDTO {
   @IsInt()
   contestantId?: number;
 
-  @IsOptional()
-  @IsBoolean()
-  isPretest?: boolean;
+  // removed since enforcement is handled in service layer
+  // @IsOptional()
+  // @IsBoolean()
+  // isPretest?: boolean;
 }
 
 export class SubmissionQueryDTO {

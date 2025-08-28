@@ -2,11 +2,15 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import { OnEvent, EventEmitter2 } from '@nestjs/event-emitter';
 import { SubmissionQueueService } from '../submission-queue/submission-queue.service';
-import { DMOJBridgeService } from '../dmoj-bridge/dmoj-bridge.service';
+import {
+  DMOJBridgeService,
+  DMOJSubmissionData,
+} from '../dmoj-bridge/dmoj-bridge.service';
 import { SubmissionVerdict } from '@prisma/client';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { Config } from 'config';
 
 @Injectable()
 export class JudgeManagerService implements OnModuleInit {
@@ -118,21 +122,13 @@ export class JudgeManagerService implements OnModuleInit {
         memory_limit:
           (queueEntry.submission.problem.testEnvironments?.memoryLimit || 256) *
           1024,
-      } as {
-        id: number;
-        problem: string;
-        language: string;
-        source: string;
-        time_limit: number;
-        memory_limit: number;
-        meta?: Record<string, unknown>;
-      };
+        short_circuit: queueEntry.submission.problem.short_circuit || false,
+      } as DMOJSubmissionData;
 
       if (queueEntry.submission.language === 'SCRATCH') {
         submissionData.meta = {
           'file-only': true,
-          'file-size-limit':
-            queueEntry.submission.problem.testEnvironments?.fileSizeLimit || 5,
+          'file-size-limit': Config.FILE_SIZE_LIMIT || 5,
         } as Record<string, unknown>;
       }
 

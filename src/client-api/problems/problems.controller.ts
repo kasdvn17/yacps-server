@@ -77,7 +77,7 @@ export class ProblemsController {
   }
 
   /**
-   * Update a problem's metadata (slug, name, description, category, types, allowedLanguages)
+   * Update a problem's metadata (slug, name, description, category, types, allowedLanguages, short_circuit)
    * @param problemSlug Slug of the problem to update
    * @param data Partial update data
    * @param user Logged in user
@@ -98,7 +98,7 @@ export class ProblemsController {
 
     if (problem.isLocked) throw new ForbiddenException('PROBLEM_LOCKED');
 
-    // Permission: authors/curators/testers or global perms
+    // Permission: authors/curators or global perms
     const canModify =
       this.permissionsService.hasPerms(
         user?.perms || 0n,
@@ -124,8 +124,9 @@ export class ProblemsController {
           name: data.name ?? undefined,
           description: data.description ?? undefined,
           categoryId: data.categoryId ?? undefined,
+          short_circuit: data.short_circuit ?? undefined,
           types: data.types
-            ? { set: [], connect: data.types.map((id) => ({ id })) }
+            ? { set: data.types.map((id) => ({ id })) }
             : undefined,
           pdfUuid: data.pdfUuid ?? undefined,
           testEnvironments: data.allowedLanguages

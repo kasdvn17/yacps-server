@@ -13,4 +13,7 @@ export const Config = {
 
   // Rating
   DEFAULT_BASE_RATING: 1200, // Base rating for unrated, default: 1200
+
+  // File Uploading
+  FILE_SIZE_LIMIT: 5, // in MB, default: 5MB
 };
