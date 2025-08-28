@@ -358,6 +358,7 @@ export class ProblemsController {
           name: data.name,
           description: data.description,
           points: data.points,
+          short_circuit: data.short_circuit || false,
           input: data.input,
           output: data.output,
           curators: {
