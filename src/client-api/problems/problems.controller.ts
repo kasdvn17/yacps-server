@@ -237,7 +237,6 @@ export class ProblemsController {
    */
   @Post('/:problemSlug/lock')
   @UseGuards(AuthGuard)
-  @Perms([UserPermissions.LOCK_PROBLEM])
   async changeLockStatus(
     @Param('problemSlug') problemSlug: string,
     @LoggedInUser() user: User,
@@ -248,6 +247,13 @@ export class ProblemsController {
       false,
     );
     if (!problem) throw new NotFoundException('PROBLEM_NOT_FOUND');
+
+    const canLock =
+      user &&
+      (problem.authors.some((a) => a.id === user.id) ||
+        problem.curators.some((c) => c.id === user.id) ||
+        this.permissionsService.hasPerms(user.perms || 0n, 'LOCK_PROBLEM'));
+    if (!canLock) throw new ForbiddenException('INSUFFICIENT_PERMISSIONS');
 
     try {
       await this.prismaService.problem.update({
