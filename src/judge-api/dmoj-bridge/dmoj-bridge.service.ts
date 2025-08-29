@@ -105,7 +105,7 @@ export class DMOJBridgeService implements OnModuleInit, OnModuleDestroy {
    * Handle incoming judge connection
    */
   private handleJudgeConnection(socket: net.Socket): void {
-    const judgeConnectionId = `judge_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const judgeConnectionId = `judge_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const remoteAddress = `${socket.remoteAddress}:${socket.remotePort}`;
 
     this.logger.log(

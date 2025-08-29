@@ -16,4 +16,5 @@ export const Config = {
 
   // File Uploading
   FILE_SIZE_LIMIT: 5, // in MB, default: 5MB
+  ZIP_FILE_SIGNATURE: 0x04034b50, // Magic number for ZIP files
 };

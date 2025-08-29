@@ -16,6 +16,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { UserPermissions } from 'constants/permissions';
 import { PermissionsService } from '../auth/permissions.service';
 import { ProblemsService } from './problems.service';
+import { Config } from 'config';
 
 @Controller()
 export class TestcasesController {
@@ -53,7 +54,7 @@ export class TestcasesController {
       try {
         const res = await axios.get(body.url, { responseType: 'arraybuffer' });
         const buf = Buffer.from(res.data);
-        if (buf.length < 4 || buf.readUInt32LE(0) !== 0x04034b50)
+        if (buf.length < 4 || buf.readUInt32LE(0) !== Config.ZIP_FILE_SIGNATURE)
           throw new InternalServerErrorException('NOT_A_ZIP');
 
         let hasInit = false;
