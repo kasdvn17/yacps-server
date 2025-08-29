@@ -238,7 +238,7 @@ export class ProblemsController {
   @Post('/:problemSlug/lock')
   @UseGuards(AuthGuard)
   @Perms([UserPermissions.LOCK_PROBLEM])
-  async lockProblem(
+  async changeLockStatus(
     @Param('problemSlug') problemSlug: string,
     @LoggedInUser() user: User,
   ) {
