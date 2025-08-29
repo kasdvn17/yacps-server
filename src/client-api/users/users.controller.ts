@@ -10,6 +10,8 @@ import {
   UseGuards,
   BadRequestException,
   ForbiddenException,
+  Param,
+  NotFoundException,
 } from '@nestjs/common';
 import { CreateUserDTO } from './users.dto';
 import { UsersService } from './users.service';
@@ -22,6 +24,7 @@ import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { getRealIp } from '../utils';
 import { Config } from 'config';
 import { UserPermissions } from 'constants/permissions';
+import * as crypto from 'crypto';
 
 @Controller()
 @UseGuards(AuthGuard, ThrottlerGuard)
@@ -35,6 +38,10 @@ export class UsersController {
     private turnstileService: TurnstileService,
   ) {}
 
+  /**
+   * Create a new user
+   * @param body The body of the request containing user details for registration.
+   */
   @Post('/')
   @Public()
   // 3 signup attempts per minute per real IP
@@ -90,18 +97,20 @@ export class UsersController {
           username: body.username,
           fullname: body.fullname || null,
           password: hashed,
+          defaultRuntime: body.defaultRuntime,
           status: Config.ENABLE_MAIL_CONFIRMATION ? 'CONF_AWAITING' : 'ACTIVE',
-        },
-        omit: {
-          password: true,
         },
       });
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
+  /**
+   * Force create a user (admin only)
+   * @param body The body of the request containing user details for registration.
+   */
   @Post('/force')
   @UseGuards(AuthGuard)
   @Perms([UserPermissions.FORCE_CREATE_USERS])
@@ -142,10 +151,14 @@ export class UsersController {
       });
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
+  /**
+   * Get the current user details
+   * @param req The request object containing user information.
+   */
   @Get('/me')
   getCurrentUser(@Req() req: Request) {
     const response = {
@@ -155,5 +168,116 @@ export class UsersController {
     delete response.password;
     delete response.isDeleted;
     return response;
+  }
+
+  /**
+   * Get user details by username
+   * @param username The username of the user to retrieve details for.
+   * @returns User details including submissions and total points.
+   */
+  @Get('/details/:username')
+  @Public()
+  async getUserDetails(@Param('username') username: string) {
+    try {
+      // Find the user by username
+      const user = await this.usersService.findUser({ username }, false, false);
+
+      if (!user) {
+        throw new NotFoundException('USER_NOT_FOUND');
+      }
+
+      return {
+        ...(await this.usersService.countPointsAndSolvedProbs(user)),
+        bio: user.bio,
+        fullname: user.fullname,
+      };
+    } catch (err) {
+      if (err instanceof NotFoundException) {
+        throw err;
+      }
+      this.logger.error(err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
+    }
+  }
+
+  @Get('/avatar/:username')
+  @Public()
+  async getUserAvatar(@Param('username') username: string) {
+    try {
+      const user = await this.usersService.findUser({ username }, false, false);
+      if (!user) {
+        throw new NotFoundException('USER_NOT_FOUND');
+      }
+
+      const emailHash = crypto
+        .createHash('md5')
+        .update(user.email.trim().toLowerCase())
+        .digest('hex');
+      const gravatarURL = `https://gravatar.com/avatar/${emailHash}`;
+
+      return {
+        avatarURL: gravatarURL,
+      };
+    } catch (err) {
+      if (err instanceof NotFoundException) {
+        throw err;
+      }
+      this.logger.error(err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
+    }
+  }
+
+  @Get('/all')
+  @Public()
+  async getAllUsers() {
+    try {
+      const users = await this.usersService.findUsers({}, false, false, 1000);
+      // Fetch all submissions for these users so we can compute aggregates
+      const userIds = users.map((u) => u.id);
+      const listPointsAndSolvedProbs =
+        await this.usersService.countBatchPointsAndSolvedProbs(userIds);
+
+      return users.map((v) => {
+        const pointsAndSolvedProbs = listPointsAndSolvedProbs.find(
+          (x) => x.id === v.id,
+        );
+        return {
+          username: v.username,
+          fullname: v.fullname,
+          rating: v.rating,
+          totalPoints: pointsAndSolvedProbs
+            ? pointsAndSolvedProbs.totalPoints
+            : 0,
+          problemsSolved: pointsAndSolvedProbs
+            ? pointsAndSolvedProbs.solvedProblems
+            : 0,
+          ...(v.isDeleted && { isDeleted: v.isDeleted }),
+        };
+      });
+    } catch (err) {
+      this.logger.error(err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
+    }
+  }
+
+  @Get('/sap_problems/:username')
+  @Public()
+  async getSAPProblemsOfUsers(@Param('username') username: string) {
+    try {
+      // Find the user by username
+      const user = await this.usersService.findUser({ username }, false, false);
+
+      if (!user) {
+        throw new NotFoundException('USER_NOT_FOUND');
+      }
+
+      return await this.usersService.getSolvedAndAttemptedProblems(user.id);
+    } catch (err) {
+      if (err instanceof NotFoundException) {
+        throw err;
+      }
+      this.logger.error(err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
+    }
   }
 }

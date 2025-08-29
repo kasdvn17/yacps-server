@@ -7,7 +7,14 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const port = process.env.PORT ?? 3000;
   const logger = new Logger(NestApplication.name);
-  app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
+    }),
+  );
   app.enableCors({
     origin: '*',
   });
@@ -15,5 +22,5 @@ async function bootstrap() {
     .listen(port)
     .then(() => logger.log(`Application is listening on port ${port}`));
 }
-// eslint-disable-next-line @typescript-eslint/no-floating-promises
-bootstrap();
+
+void bootstrap();

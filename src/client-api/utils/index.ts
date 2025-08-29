@@ -1,5 +1,13 @@
 import { Request } from 'express';
 
+/**
+ * Extracts the real IP address from an Express request object.
+ * It checks various headers that may contain the real IP address,
+ * such as 'x-forwarded-for', 'x-real-ip', 'cf-connecting-ip', and 'x-connecting-ip'.
+ *
+ * @param {Request} req - The Express request object.
+ * @returns {string} - The real IP address or 'unknown' if not found.
+ */
 export const getRealIp = (req: Request): string => {
   // Try to get real IP from various headers
   const xForwardedFor = req.headers['x-forwarded-for'];

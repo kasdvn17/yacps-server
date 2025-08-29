@@ -1,9 +1,11 @@
 import {
   IsArray,
+  IsBoolean,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
+  Max,
 } from 'class-validator';
 
 export class CreateProblemDTO {
@@ -31,6 +33,17 @@ export class CreateProblemDTO {
   @IsOptional()
   output?: string;
 
+  @IsNumber()
+  @Max(60, { message: 'timeLimit must not exceed 60 seconds' })
+  timeLimit: number;
+
+  @IsNumber()
+  memoryLimit: number;
+
+  @IsBoolean()
+  @IsOptional()
+  short_circuit?: boolean;
+
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
@@ -43,7 +56,7 @@ export class CreateProblemDTO {
 
   @IsString()
   @IsOptional()
-  pdfUuid?: string;
+  pdf?: string;
 
   @IsNumber()
   @IsOptional()
@@ -54,7 +67,55 @@ export class CreateProblemDTO {
   @IsOptional()
   types?: number[];
 
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  allowedLanguages?: string[];
+
   @IsString()
   @IsOptional()
   solution?: string;
+}
+
+export class UpdateProblemDTO {
+  @IsString()
+  @IsOptional()
+  slug?: string;
+
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsNumber()
+  @Max(60, { message: 'timeLimit must not exceed 60 seconds' })
+  timeLimit: number;
+
+  @IsNumber()
+  memoryLimit: number;
+
+  @IsNumber()
+  @IsOptional()
+  categoryId?: number;
+
+  @IsArray()
+  @IsNumber({ allowNaN: false }, { each: true })
+  @IsOptional()
+  types?: number[];
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  allowedLanguages?: string[];
+
+  @IsString()
+  @IsOptional()
+  pdf?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  short_circuit?: boolean;
 }
