@@ -39,6 +39,10 @@ export class AuthGuard implements CanActivate {
           await this.sessionsService.deleteSession(session.id);
           throw new UnauthorizedException('INVALID_TOKEN');
         }
+        if (session.user.status != 'ACTIVE' || session.user.isDeleted) {
+          await this.sessionsService.deleteSession(session.id);
+          throw new UnauthorizedException('INVALID_TOKEN');
+        }
 
         if (requiredPerms && requiredPerms.length > 0) {
           const missingPerms = requiredPerms.filter(
@@ -59,6 +63,11 @@ export class AuthGuard implements CanActivate {
     return true;
   }
 
+  /**
+   * Extract a token from the Authorization header
+   * @param request The request object from the execution context
+   * @returns The string of the extracted token
+   */
   private extractToken(request: Request): string | undefined {
     const [type, token] = request.headers.authorization?.split(' ') ?? [];
     return type === 'Bearer' ? token : undefined;

@@ -14,12 +14,14 @@ datasource db {
 model User {
   id String @id @default(uuid())
 
-  email    String  @unique
-  username String  @unique
-  password String
-  fullname String?
+  email          String  @unique
+  username       String  @unique
+  password       String
+  fullname       String?
+  bio            String?
   // DOB      DateTime
-  perms    BigInt  @default(0)
+  defaultRuntime String  @default("CPP17")
+  perms          BigInt  @default(0)
 
   rating Int?
 
@@ -69,7 +71,7 @@ model Role {
 model Session {
   id String @id @default(uuid())
 
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String
 
   ip        String?
@@ -83,10 +85,10 @@ model Session {
 model Contestant {
   id Int @id @default(autoincrement())
 
-  contest   Contest @relation(fields: [contestId], references: [id])
+  contest   Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)
   contestId Int
 
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String
 
   rank  Int // 1-indexed ranking
@@ -122,8 +124,9 @@ model Contest {
   curators User[] @relation("CuratorToContest")
   testers  User[] @relation("TesterToContest")
 
-  participants Contestant[]
-  problems     Problem[]
+  participants    Contestant[]
+  problems        Problem[]
+  primaryProblems PrimaryContestToProblem[]
 }
 
 enum ContestStyle {
@@ -136,11 +139,11 @@ enum ContestStyle {
 model Submission {
   id Int @id @default(autoincrement())
 
-  author       User        @relation(fields: [authorId], references: [id])
+  author       User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
   authorId     String
-  problem      Problem     @relation(fields: [problemId], references: [id])
+  problem      Problem     @relation(fields: [problemId], references: [id], onDelete: Cascade)
   problemId    Int
-  contestant   Contestant? @relation(fields: [contestantId], references: [id])
+  contestant   Contestant? @relation(fields: [contestantId], references: [id], onDelete: Cascade)
   contestantId Int?
 
   code     String
@@ -148,7 +151,27 @@ model Submission {
 
   verdict SubmissionVerdict @default(QU)
 
-  isLocked Boolean @default(false)
+  // Judging details
+  judgeId      String?
+  judge        Judge?  @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+  points       Float?  @default(0)
+  maxMemory    Int? // in KB
+  maxTime      Float? // in seconds
+  compileTime  Float? // in seconds
+  errorMessage String? // compilation or runtime errors
+
+  // Queue and status management
+  isLocked         Boolean   @default(false)
+  isPretest        Boolean   @default(false)
+  queuedAt         DateTime?
+  judgingStartedAt DateTime?
+  judgingEndedAt   DateTime?
+
+  // Test case results
+  testCases SubmissionTestCase[]
+
+  // Queue management
+  queue SubmissionQueue?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -159,6 +182,9 @@ model Submission {
   @@index([authorId, problemId])
   @@index([authorId, contestantId])
   @@index([contestantId, problemId])
+  @@index([judgeId])
+  @@index([verdict])
+  @@index([queuedAt])
 }
 
 enum SubmissionVerdict {
@@ -174,6 +200,7 @@ enum SubmissionVerdict {
   TLE // Time limit exceeded
   MLE // Memory limit exceeded
   ISE // Internal Server Error
+  SK // Skipped
 }
 
 model Category {
@@ -209,13 +236,25 @@ model Problem {
   pdfUuid String?
 
   categoryId Int      @default(0)
-  category   Category @relation(fields: [categoryId], references: [id])
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   types            Type[]
   contests         Contest[]
   submissions      Submission[]
   testEnvironments ProblemTestEnvironment?
+  testCases        ProblemTestCase[]
+  archives         ProblemArchive[]
   solution         String?
+
+  // Test case visibility controls
+  testcaseDataVisibility TestcaseDataVisibility @default(AUTHOR_ONLY)
+
+  // Contest
+  primaryContest PrimaryContestToProblem?
+
+  // Whether this problem currently has test data uploaded to object storage
+  hasTestData   Boolean @default(false)
+  short_circuit Boolean @default(false)
 
   isDeleted Boolean @default(false)
   isPublic  Boolean @default(true)
@@ -225,9 +264,33 @@ model Problem {
   updatedAt DateTime @updatedAt
 }
 
+// Test cases for problems (stores input/expected data for visibility control)
+model ProblemTestCase {
+  id Int @id @default(autoincrement())
+
+  problem   Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  problemId Int
+
+  caseNumber  Int
+  batchNumber Int?
+
+  input    String // test case input
+  expected String // expected output
+  points   Float? @default(1) // points for this test case
+
+  isDeleted Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([problemId, caseNumber])
+  @@index([problemId])
+  @@index([problemId, caseNumber])
+}
+
 model ProblemTestEnvironment {
   problemId Int     @id
-  problem   Problem @relation(fields: [problemId], references: [id])
+  problem   Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
 
   allowedLangs String[] @default([])
   timeLimit    Int      @default(1) // seconds
@@ -239,13 +302,23 @@ model ProblemTestEnvironment {
 // Specific configuration for a coding language
 model ProblemLanguageTestEnvironment {
   problemId Int                    @unique
-  PTE       ProblemTestEnvironment @relation(fields: [problemId], references: [problemId])
+  PTE       ProblemTestEnvironment @relation(fields: [problemId], references: [problemId], onDelete: Cascade)
   lang      String                 @unique
 
   timeLimit   Int @default(1) // seconds
   memoryLimit Int @default(256) // in MB
 
   @@id([problemId, lang])
+}
+
+model PrimaryContestToProblem {
+  contest   Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  contestId Int
+  problem   Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  problemId Int     @id
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum UserStatus {
@@ -260,6 +333,12 @@ enum JudgeStatus {
   DISABLED
 }
 
+enum TestcaseDataVisibility {
+  AUTHOR_ONLY // Only authors/curators/testers can see test case input/output
+  AC_ONLY // Only users who have solved the problem can see test case input/output
+  EVERYONE // Everyone can see test case input/output
+}
+
 // Judge
 model Judge {
   id   String  @id @default(uuid())
@@ -271,6 +350,12 @@ model Judge {
   token  JudgeToken?
 
   isDeleted Boolean @default(false)
+  isJudging Boolean @default(false)
+
+  // Track current and past submissions
+  currentSubmissionId Int?
+  submissions         Submission[]
+  queuedSubmissions   SubmissionQueue[]
 
   lastActive DateTime
   createdAt  DateTime @default(now())
@@ -279,8 +364,73 @@ model Judge {
 
 model JudgeToken {
   id      String @id @default(cuid()) // ensure that when judge tokens are (re)generated, they are jwt-ed from different ids
-  judge   Judge  @relation(fields: [judgeId], references: [id])
+  judge   Judge  @relation(fields: [judgeId], references: [id], onDelete: Cascade)
   judgeId String @unique
 
   createdAt DateTime @default(now())
+}
+
+// Test case results for submissions
+model SubmissionTestCase {
+  id Int @id @default(autoincrement())
+
+  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  submissionId Int
+
+  caseNumber  Int
+  batchNumber Int?
+
+  verdict   SubmissionVerdict
+  time      Float? // execution time in seconds
+  memory    Int? // memory usage in KB
+  points    Float?            @default(0)
+  maxPoints Float?            @default(0)
+
+  input    String? // for small test cases, can store input
+  output   String? // program output
+  expected String? // expected output
+  feedback String? // additional feedback
+
+  createdAt DateTime @default(now())
+
+  @@unique([submissionId, caseNumber])
+  @@index([submissionId])
+  @@index([submissionId, caseNumber])
+}
+
+// Archive records for problem test uploads
+model ProblemArchive {
+  id        Int     @id @default(autoincrement())
+  problem   Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  problemId Int
+
+  filename String
+  url      String
+  sha256   String
+  size     Int
+  hasInit  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+}
+
+// Submission queue for managing judge assignment
+model SubmissionQueue {
+  id Int @id @default(autoincrement())
+
+  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  submissionId Int        @unique
+
+  priority    Int @default(0) // higher priority = judged first
+  attempts    Int @default(0) // number of judging attempts
+  maxAttempts Int @default(3)
+
+  assignedJudgeId String?
+  assignedJudge   Judge?    @relation(fields: [assignedJudgeId], references: [id], onDelete: Cascade)
+  assignedAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([priority, createdAt])
+  @@index([assignedJudgeId])
 }

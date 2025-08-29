@@ -17,6 +17,14 @@ export class SessionsService {
     private usersService: UsersService,
   ) {}
 
+  /**
+   * Creates a new session for the user.
+   * @param userId - The ID of the user.
+   * @param ip - The IP address of the user.
+   * @param skipCheckUser - If true, skips checking if the user exists.
+   * @param userAgent - The user agent string of the client.
+   * @returns The created session.
+   */
   async createSession(
     userId: string,
     ip: string,
@@ -48,10 +56,14 @@ export class SessionsService {
       return session;
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
+  /**
+   * Deletes a session by its ID.
+   * @param sessionId - The ID of the session to delete.
+   */
   async deleteSession(sessionId: string) {
     try {
       const deleteResult = await this.prismaService.session.deleteMany({
@@ -63,10 +75,16 @@ export class SessionsService {
         throw new NotFoundException('SESSION_NOT_FOUND');
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
+  /**
+   * Deletes all sessions for a user, optionally excluding a specific session ID.
+   * @param userId - The ID of the user whose sessions are to be deleted.
+   * @param excludeSessionId - An optional session ID to exclude from deletion.
+   * @returns The number of sessions deleted.
+   */
   async deleteAllUserSessions(userId: string, excludeSessionId?: string) {
     try {
       const deleteResult = await this.prismaService.session.deleteMany({
@@ -84,10 +102,15 @@ export class SessionsService {
       return deleteResult.count;
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
+  /**
+   * Finds a session by its ID and includes the user information.
+   * @param id - The ID of the session to find.
+   * @returns The session with user information or null if not found.
+   */
   async findSessionByIdWithUser(id: string) {
     try {
       return await this.prismaService.session.findUnique({
@@ -100,10 +123,15 @@ export class SessionsService {
       });
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
+  /**
+   * Finds a session by its ID.
+   * @param id - The ID of the session to find.
+   * @returns The session or null if not found.
+   */
   async findSessionById(id: string): Promise<Session | null> {
     try {
       return await this.prismaService.session.findUnique({
@@ -113,10 +141,15 @@ export class SessionsService {
       });
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
+  /**
+   * Finds a session based on the provided fields.
+   * @param fields - Partial session fields to match.
+   * @returns The session or null if not found.
+   */
   async findSession(fields: Partial<Session>): Promise<Session | null> {
     try {
       return await this.prismaService.session.findFirst({
@@ -124,10 +157,15 @@ export class SessionsService {
       });
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
+  /**
+   * Finds a session with user information based on the provided fields.
+   * @param fields - Partial session fields to match.
+   * @returns The session with user information or null if not found.
+   */
   async findSessionWithUser(fields: Partial<Session>) {
     try {
       return await this.prismaService.session.findFirst({
@@ -143,10 +181,16 @@ export class SessionsService {
       });
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 
+  /**
+   * Finds multiple sessions based on the provided fields.
+   * @param fields - Partial session fields to match.
+   * @param limit - The maximum number of sessions to return.
+   * @returns An array of sessions matching the criteria.
+   */
   async findSessions(
     fields: Partial<Session>,
     limit: number = 10,
@@ -159,7 +203,7 @@ export class SessionsService {
       return sessions;
     } catch (err) {
       this.logger.error(err);
-      throw new InternalServerErrorException('UNKNOWN_ERROR', err);
+      throw new InternalServerErrorException('UNKNOWN_ERROR', err.message);
     }
   }
 }
