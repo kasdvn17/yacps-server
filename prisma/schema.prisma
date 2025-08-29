@@ -71,7 +71,7 @@ model Role {
 model Session {
   id String @id @default(uuid())
 
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String
 
   ip        String?
@@ -85,10 +85,10 @@ model Session {
 model Contestant {
   id Int @id @default(autoincrement())
 
-  contest   Contest @relation(fields: [contestId], references: [id])
+  contest   Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)
   contestId Int
 
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String
 
   rank  Int // 1-indexed ranking
@@ -139,11 +139,11 @@ enum ContestStyle {
 model Submission {
   id Int @id @default(autoincrement())
 
-  author       User        @relation(fields: [authorId], references: [id])
+  author       User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
   authorId     String
-  problem      Problem     @relation(fields: [problemId], references: [id])
+  problem      Problem     @relation(fields: [problemId], references: [id], onDelete: Cascade)
   problemId    Int
-  contestant   Contestant? @relation(fields: [contestantId], references: [id])
+  contestant   Contestant? @relation(fields: [contestantId], references: [id], onDelete: Cascade)
   contestantId Int?
 
   code     String
@@ -153,7 +153,7 @@ model Submission {
 
   // Judging details
   judgeId      String?
-  judge        Judge?  @relation(fields: [judgeId], references: [id])
+  judge        Judge?  @relation(fields: [judgeId], references: [id], onDelete: Cascade)
   points       Float?  @default(0)
   maxMemory    Int? // in KB
   maxTime      Float? // in seconds
@@ -236,7 +236,7 @@ model Problem {
   pdfUuid String?
 
   categoryId Int      @default(0)
-  category   Category @relation(fields: [categoryId], references: [id])
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   types            Type[]
   contests         Contest[]
@@ -290,7 +290,7 @@ model ProblemTestCase {
 
 model ProblemTestEnvironment {
   problemId Int     @id
-  problem   Problem @relation(fields: [problemId], references: [id])
+  problem   Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
 
   allowedLangs String[] @default([])
   timeLimit    Int      @default(1) // seconds
@@ -302,7 +302,7 @@ model ProblemTestEnvironment {
 // Specific configuration for a coding language
 model ProblemLanguageTestEnvironment {
   problemId Int                    @unique
-  PTE       ProblemTestEnvironment @relation(fields: [problemId], references: [problemId])
+  PTE       ProblemTestEnvironment @relation(fields: [problemId], references: [problemId], onDelete: Cascade)
   lang      String                 @unique
 
   timeLimit   Int @default(1) // seconds
@@ -312,9 +312,9 @@ model ProblemLanguageTestEnvironment {
 }
 
 model PrimaryContestToProblem {
-  contest   Contest @relation(fields: [contestId], references: [id])
+  contest   Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)
   contestId Int
-  problem   Problem @relation(fields: [problemId], references: [id])
+  problem   Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
   problemId Int     @id
 
   createdAt DateTime @default(now())
@@ -364,7 +364,7 @@ model Judge {
 
 model JudgeToken {
   id      String @id @default(cuid()) // ensure that when judge tokens are (re)generated, they are jwt-ed from different ids
-  judge   Judge  @relation(fields: [judgeId], references: [id])
+  judge   Judge  @relation(fields: [judgeId], references: [id], onDelete: Cascade)
   judgeId String @unique
 
   createdAt DateTime @default(now())
@@ -425,7 +425,7 @@ model SubmissionQueue {
   maxAttempts Int @default(3)
 
   assignedJudgeId String?
-  assignedJudge   Judge?    @relation(fields: [assignedJudgeId], references: [id])
+  assignedJudge   Judge?    @relation(fields: [assignedJudgeId], references: [id], onDelete: Cascade)
   assignedAt      DateTime?
 
   createdAt DateTime @default(now())
