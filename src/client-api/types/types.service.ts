@@ -34,4 +34,36 @@ export class TypesService {
       throw new InternalServerErrorException(err);
     }
   }
+
+  async exists(name: string): Promise<boolean> {
+    try {
+      const type = await this.prismaService.type.findUnique({
+        where: {
+          name,
+        },
+      });
+      return !!type;
+    } catch (err) {
+      this.logger.error(err);
+      throw new InternalServerErrorException(err);
+    }
+  }
+
+  async create(names: string[]) {
+    try {
+      const createdTypes = await Promise.all(
+        names.map((name) =>
+          this.prismaService.type.upsert({
+            where: { name },
+            update: {},
+            create: { name },
+          }),
+        ),
+      );
+      return createdTypes;
+    } catch (err) {
+      this.logger.error(err);
+      throw new InternalServerErrorException(err);
+    }
+  }
 }
