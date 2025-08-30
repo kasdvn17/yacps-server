@@ -34,4 +34,14 @@ export class CategoriesService {
       throw new InternalServerErrorException(err);
     }
   }
+
+  async exists(name: string): Promise<boolean> {
+    const cat = await this.prismaService.category.findUnique({
+      where: {
+        name,
+      },
+    });
+
+    return !!cat;
+  }
 }
